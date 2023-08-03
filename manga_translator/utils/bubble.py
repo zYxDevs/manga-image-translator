@@ -19,9 +19,7 @@ def check_color(image):
             if color_distance > 100:
                 n+=1
     # gt 10
-    if n>10:
-        return True
-    return False
+    return n > 10
 
 def is_ignore(region_img,ignore_bubble = 0):
     """
@@ -64,7 +62,5 @@ def is_ignore(region_img,ignore_bubble = 0):
     if ratio>=ignore_bubble and ratio<=(100-ignore_bubble):
         return True
     # To determine if there is color, consider the colored text as invalid information and skip it without translation
-    if check_color(region_img):
-        return True
-    return False
+    return bool(check_color(region_img))
 

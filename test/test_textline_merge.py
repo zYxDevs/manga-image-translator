@@ -58,11 +58,11 @@ async def run_test(lines, expected_combinations, width, height, path = None):
     path = os.path.join(BBOX_IMAGE_FOLDER, path or 'bboxes.png')
     save_regions_to_image(path, regions, width, height)
 
-    invalid_regions = []
-    for i, generated_combination in enumerate(generated_combinations):
-        if generated_combination not in expected_combinations:
-            invalid_regions.append(i)
-    if invalid_regions:
+    if invalid_regions := [
+        i
+        for i, generated_combination in enumerate(generated_combinations)
+        if generated_combination not in expected_combinations
+    ]:
         raise Exception(f'Invalid regions: {invalid_regions} - Image saved under {path}')
 
         # # Search for all associated regions

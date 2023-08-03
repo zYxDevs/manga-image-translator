@@ -29,10 +29,11 @@ def read_pfm(path):
         elif header.decode("ascii") == "Pf":
             color = False
         else:
-            raise Exception("Not a PFM file: " + path)
+            raise Exception(f"Not a PFM file: {path}")
 
-        dim_match = re.match(r"^(\d+)\s(\d+)\s$", file.readline().decode("ascii"))
-        if dim_match:
+        if dim_match := re.match(
+            r"^(\d+)\s(\d+)\s$", file.readline().decode("ascii")
+        ):
             width, height = list(map(int, dim_match.groups()))
         else:
             raise Exception("Malformed PFM header.")
@@ -46,7 +47,7 @@ def read_pfm(path):
             # big-endian
             endian = ">"
 
-        data = np.fromfile(file, endian + "f")
+        data = np.fromfile(file, f"{endian}f")
         shape = (height, width, 3) if color else (height, width)
 
         data = np.reshape(data, shape)
@@ -125,11 +126,7 @@ def resize_image(img):
     height_orig = img.shape[0]
     width_orig = img.shape[1]
 
-    if width_orig > height_orig:
-        scale = width_orig / 384
-    else:
-        scale = height_orig / 384
-
+    scale = width_orig / 384 if width_orig > height_orig else height_orig / 384
     height = (np.ceil(height_orig / scale / 32) * 32).astype(int)
     width = (np.ceil(width_orig / scale / 32) * 32).astype(int)
 
@@ -156,11 +153,9 @@ def resize_depth(depth, width, height):
     """
     depth = torch.squeeze(depth[0, :, :, :]).to("cpu")
 
-    depth_resized = cv2.resize(
+    return cv2.resize(
         depth.numpy(), (width, height), interpolation=cv2.INTER_CUBIC
     )
-
-    return depth_resized
 
 def write_depth(path, depth, bits=1):
     """Write depth map to pfm and png file.
@@ -169,7 +164,7 @@ def write_depth(path, depth, bits=1):
         path (str): filepath without extension
         depth (array): depth
     """
-    write_pfm(path + ".pfm", depth.astype(np.float32))
+    write_pfm(f"{path}.pfm", depth.astype(np.float32))
 
     depth_min = depth.min()
     depth_max = depth.max()
@@ -182,8 +177,8 @@ def write_depth(path, depth, bits=1):
         out = np.zeros(depth.shape, dtype=depth.type)
 
     if bits == 1:
-        cv2.imwrite(path + ".png", out.astype("uint8"))
+        cv2.imwrite(f"{path}.png", out.astype("uint8"))
     elif bits == 2:
-        cv2.imwrite(path + ".png", out.astype("uint16"))
+        cv2.imwrite(f"{path}.png", out.astype("uint16"))
 
     return

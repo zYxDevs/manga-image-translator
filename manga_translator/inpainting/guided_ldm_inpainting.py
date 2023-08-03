@@ -110,7 +110,7 @@ class GuidedDDIMSample(DDIMSampler) :
             if callback: callback(i)
         return x_dec
     
-def get_inpainting_image_condition(model, image, mask) :
+def get_inpainting_image_condition(model, image, mask):
     conditioning_mask = np.array(mask.convert("L"))
     conditioning_mask = conditioning_mask.astype(np.float32) / 255.0
     conditioning_mask = torch.from_numpy(conditioning_mask[None, None])
@@ -124,8 +124,7 @@ def get_inpainting_image_condition(model, image, mask) :
     conditioning_image = model.get_first_stage_encoding(model.encode_first_stage(conditioning_image))
     conditioning_mask = torch.nn.functional.interpolate(conditioning_mask, size=conditioning_image.shape[-2:])
     conditioning_mask = conditioning_mask.expand(conditioning_image.shape[0], -1, -1, -1)
-    image_conditioning = torch.cat([conditioning_mask, conditioning_image], dim=1)
-    return image_conditioning
+    return torch.cat([conditioning_mask, conditioning_image], dim=1)
 
 def get_empty_image_condition(latent) :
     return latent.new_zeros(latent.shape[0], 5, latent.shape[2], latent.shape[3])
@@ -163,7 +162,7 @@ class GuidedLDM(LatentDiffusion):
         ddim_steps = 50, 
         mask_blur: int = 16,
         use_cuda: bool = True,
-        **kwargs) -> Image.Image :
+        **kwargs) -> Image.Image:
         ddim_sampler = GuidedDDIMSample(self)
         if use_cuda :
             self.cond_stage_model.cuda()
@@ -172,12 +171,8 @@ class GuidedLDM(LatentDiffusion):
         uc_text = self.get_learned_conditioning([uc_text])
         cond = {"c_crossattn": [c_text]}
         uc_cond = {"c_crossattn": [uc_text]}
-        
-        if use_cuda :
-            device = torch.device('cuda:0')
-        else :
-            device = torch.device('cpu')
-            
+
+        device = torch.device('cuda:0') if use_cuda else torch.device('cpu')
         image_mask = mask
         image_mask = image_mask.convert('L')
         image_mask = image_mask.filter(ImageFilter.GaussianBlur(mask_blur))
@@ -200,7 +195,7 @@ class GuidedLDM(LatentDiffusion):
             image_cdt = get_inpainting_image_condition(self, image, image_mask)
             cond["c_concat"] = [image_cdt]
             uc_cond["c_concat"] = [image_cdt]        
-        
+
         steps = ddim_steps
         t_enc = int(min(denoising_strength, 0.999) * steps)
         eta = 0

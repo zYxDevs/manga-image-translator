@@ -75,7 +75,7 @@ class ESRGANUpscaler(OfflineUpscaler):
             self._run_esrgan_executable(in_dir, out_dir, upscale_ratio, 0)
         except Exception:
             # Maybe throw exception instead
-            self.logger.warn(f'Process returned non-zero exit status. Skipping upscaling.')
+            self.logger.warn('Process returned non-zero exit status. Skipping upscaling.')
             return image_batch
 
         output_batch = []
@@ -104,9 +104,8 @@ class ESRGANUpscaler(OfflineUpscaler):
         with tqdm.tqdm(desc='[esgran]', total=100) as bar:
             last_progress = 0
             for line in iter(process.stdout.readline, b''):
-                match = re.search(r'^(\d+\.\d+)%$', str(line, 'utf-8'))
-                if match:
-                    progress = float(match.group(1))
+                if match := re.search(r'^(\d+\.\d+)%$', str(line, 'utf-8')):
+                    progress = float(match[1])
                     bar.update(progress - last_progress)
                     last_progress = progress
             bar.update(100 - last_progress)

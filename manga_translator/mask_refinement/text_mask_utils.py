@@ -87,8 +87,7 @@ def refine_mask(rgbimg, rawmask):
                         normalization=dcrf.NO_NORMALIZATION)
     Q = d.inference(5)
     res = np.argmax(Q, axis=0).reshape((rgbimg.shape[0], rgbimg.shape[1]))
-    crf_mask = np.array(res * 255, dtype=np.uint8)
-    return crf_mask
+    return np.array(res * 255, dtype=np.uint8)
 
 def complete_mask(img: np.ndarray, mask: np.ndarray, textlines: List[Tuple[int, int, int, int]], keep_threshold = 1e-2):
     # mask_img = mask_img.copy()

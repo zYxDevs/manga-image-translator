@@ -23,10 +23,9 @@ def make_square(img, target_size):
     left, right = delta_w // 2, delta_w - (delta_w // 2)
 
     color = [255, 255, 255]
-    new_im = cv2.copyMakeBorder(
+    return cv2.copyMakeBorder(
         img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color
     )
-    return new_im
 
 
 def smart_resize(img, size):
@@ -44,7 +43,7 @@ class Tagger :
         self.tags = pd.read_csv(os.path.join(root, 'selected_tags.csv') if root else 'selected_tags.csv')
         _, self.height, _, _ = self.model.get_inputs()[0].shape
 
-    def label(self, image: Image) -> Dict[str, float] :
+    def label(self, image: Image) -> Dict[str, float]:
         # alpha to white
         image = image.convert('RGBA')
         new_image = Image.new('RGBA', image.size, 'WHITE')
@@ -74,10 +73,9 @@ class Tagger :
         # rest are regular tags
         tags = dict(tags[4:].values)
 
-        tags = {t: v for t, v in tags.items() if v > 0.5}
-        return tags
+        return {t: v for t, v in tags.items() if v > 0.5}
 
-    def label_cv2_bgr(self, image: np.ndarray) -> Dict[str, float] :
+    def label_cv2_bgr(self, image: np.ndarray) -> Dict[str, float]:
         # image in BGR u8
         image = make_square(image, self.height)
         image = smart_resize(image, self.height)
@@ -98,6 +96,5 @@ class Tagger :
         # rest are regular tags
         tags = dict(tags[4:].values)
 
-        tags = {t: v for t, v in tags.items() if v > 0.75}
-        return tags
+        return {t: v for t, v in tags.items() if v > 0.75}
     

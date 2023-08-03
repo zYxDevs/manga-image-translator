@@ -55,23 +55,18 @@ def CJK_Compatibility_Forms_translate(cdpt: str, direction: int):
     """direction: 0 - horizonal, 1 - vertical"""
     if cdpt == 'ー' and direction == 1:
         return 'ー', 90
-    if cdpt in CJK_V2H:
-        if direction == 0:
-            # translate
-            return CJK_V2H[cdpt], 0
-        else:
-            return cdpt, 0
+    if cdpt in CJK_V2H and direction == 0:
+        # translate
+        return CJK_V2H[cdpt], 0
+    elif cdpt in CJK_V2H or cdpt in CJK_H2V and direction != 1:
+        return cdpt, 0
     elif cdpt in CJK_H2V:
-        if direction == 1:
-            # translate
-            return CJK_H2V[cdpt], 0
-        else:
-            return cdpt, 0
+        # translate
+        return CJK_H2V[cdpt], 0
     return cdpt, 0
 
-def compact_special_symbols(text: str) -> str :
-    text = text.replace('...', '…')
-    return text
+def compact_special_symbols(text: str) -> str:
+    return text.replace('...', '…')
 
 def rotate_image(image, angle):
     if angle == 0:
@@ -84,15 +79,13 @@ def rotate_image(image, angle):
     image_center = tuple(np.array(image_exp.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     result = cv2.warpAffine(image_exp, rot_mat, image_exp.shape[1::-1], flags=cv2.INTER_LINEAR)
-    if angle == 90:
-        return result, (0, 0)
-    return result, (diff_i, diff_j)
+    return (result, (0, 0)) if angle == 90 else (result, (diff_i, diff_j))
 
 def add_color(bw_char_map, color, stroke_char_map, stroke_color):
     if bw_char_map.size == 0:
-        fg = np.zeros((bw_char_map.shape[0], bw_char_map.shape[1], 4), dtype = np.uint8)
-        return fg
-    
+        return np.zeros(
+            (bw_char_map.shape[0], bw_char_map.shape[1], 4), dtype=np.uint8
+        )
     # print(bw_char_map.shape, stroke_char_map.shape)
     # import matplotlib.pyplot as plt
     # x1, y1, w1, h1 = cv2.boundingRect(bw_char_map)
@@ -149,10 +142,7 @@ def get_cached_font(path: str) -> freetype.Face:
 
 def set_font(font_path: str):
     global FONT_SELECTION
-    if font_path:
-        selection = [font_path] + FALLBACK_FONTS
-    else:
-        selection = FALLBACK_FONTS
+    selection = [font_path] + FALLBACK_FONTS if font_path else FALLBACK_FONTS
     FONT_SELECTION = [get_cached_font(p) for p in selection]
 
 class namespace:
@@ -269,8 +259,7 @@ def put_char_vertical(font_size: int, cdpt: str, pen_l: Tuple[int, int], canvas_
     slot = get_char_glyph(cdpt, font_size, 1)
     bitmap = slot.bitmap
     if bitmap.rows * bitmap.width == 0 or len(bitmap.buffer) != bitmap.rows * bitmap.width:
-        char_offset_y = slot.metrics.vertBearingY >> 6
-        return char_offset_y
+        return slot.metrics.vertBearingY >> 6
     char_offset_y = slot.metrics.vertAdvance >> 6
     bitmap_char = np.array(bitmap.buffer, dtype = np.uint8).reshape((bitmap.rows,bitmap.width))
     pen[0] += slot.metrics.vertBearingX >> 6
@@ -392,7 +381,7 @@ def calc_horizontal(font_size: int, text: str, max_width: int) -> Tuple[List[str
         current_widths = word_widths[i]
         # Prepend ' ' to next words
         if line_width > 0:
-            current_word = ' ' + current_word
+            current_word = f' {current_word}'
             current_widths = [whitespace_offset_x] + current_widths
         current_width = sum(current_widths)
 
@@ -414,12 +403,10 @@ def calc_horizontal(font_size: int, text: str, max_width: int) -> Tuple[List[str
                 j = len(current_word)
                 segment1_width = current_width
                 segment1 = current_word
-            # If there isnt any space for even one character
             elif j == 0 and line_width == 0:
                 j = 1
                 segment1_width = current_widths[0]
                 segment1 = current_word[0]
-            # Carry the small segment over to the next line
             elif j <= 2 and line_width != 0:
                 j = 0
                 segment1_width = 0
@@ -434,7 +421,7 @@ def calc_horizontal(font_size: int, text: str, max_width: int) -> Tuple[List[str
                 segment1_width -= hyphen_offset_x
                 segment1 = current_word[:j]
             else:
-                segment1 = current_word[:j] + '-'
+                segment1 = f'{current_word[:j]}-'
 
             line_text += segment1
             line_width += segment1_width

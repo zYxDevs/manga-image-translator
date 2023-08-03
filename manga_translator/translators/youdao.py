@@ -42,11 +42,8 @@ class YoudaoTranslator(CommonTranslator):
             raise MissingAPIKeyException('Please set the YOUDAO_APP_KEY and YOUDAO_SECRET_KEY environment variables before using the youdao translator.')
 
     async def _translate(self, from_lang, to_lang, queries):
-        data = {}
         query_text = '\n'.join(queries)
-        data['from'] = from_lang
-        data['to'] = to_lang
-        data['signType'] = 'v3'
+        data = {'from': from_lang, 'to': to_lang, 'signType': 'v3'}
         curtime = str(int(time.time()))
         data['curtime'] = curtime
         salt = str(uuid.uuid1())
@@ -70,7 +67,7 @@ class YoudaoTranslator(CommonTranslator):
         if q is None:
             return None
         size = len(q)
-        return q if size <= 20 else q[0:10] + str(size) + q[size - 10:size]
+        return q if size <= 20 else q[:10] + str(size) + q[size - 10:size]
 
     async def _do_request(self, data):
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}

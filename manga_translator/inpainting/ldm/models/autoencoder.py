@@ -79,7 +79,7 @@ class VQModel(pl.LightningModule):
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
+                    print(f"Deleting key {k} from state_dict.")
                     del sd[k]
         missing, unexpected = self.load_state_dict(sd, strict=False)
         print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
@@ -104,20 +104,16 @@ class VQModel(pl.LightningModule):
 
     def decode(self, quant):
         quant = self.post_quant_conv(quant)
-        dec = self.decoder(quant)
-        return dec
+        return self.decoder(quant)
 
     def decode_code(self, code_b):
         quant_b = self.quantize.embed_code(code_b)
-        dec = self.decode(quant_b)
-        return dec
+        return self.decode(quant_b)
 
     def forward(self, input, return_pred_indices=False):
         quant, diff, (_,_,ind) = self.encode(input)
         dec = self.decode(quant)
-        if return_pred_indices:
-            return dec, diff, ind
-        return dec, diff
+        return (dec, diff, ind) if return_pred_indices else (dec, diff)
 
     def get_input(self, batch, k):
         x = batch[k]
@@ -168,19 +164,27 @@ class VQModel(pl.LightningModule):
     def _validation_step(self, batch, batch_idx, suffix=""):
         x = self.get_input(batch, self.image_key)
         xrec, qloss, ind = self(x, return_pred_indices=True)
-        aeloss, log_dict_ae = self.loss(qloss, x, xrec, 0,
-                                        self.global_step,
-                                        last_layer=self.get_last_layer(),
-                                        split="val"+suffix,
-                                        predicted_indices=ind
-                                        )
+        aeloss, log_dict_ae = self.loss(
+            qloss,
+            x,
+            xrec,
+            0,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split=f"val{suffix}",
+            predicted_indices=ind,
+        )
 
-        discloss, log_dict_disc = self.loss(qloss, x, xrec, 1,
-                                            self.global_step,
-                                            last_layer=self.get_last_layer(),
-                                            split="val"+suffix,
-                                            predicted_indices=ind
-                                            )
+        discloss, log_dict_disc = self.loss(
+            qloss,
+            x,
+            xrec,
+            1,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split=f"val{suffix}",
+            predicted_indices=ind,
+        )
         rec_loss = log_dict_ae[f"val{suffix}/rec_loss"]
         self.log(f"val{suffix}/rec_loss", rec_loss,
                    prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
@@ -229,7 +233,7 @@ class VQModel(pl.LightningModule):
         return self.decoder.conv_out.weight
 
     def log_images(self, batch, only_inputs=False, plot_ema=False, **kwargs):
-        log = dict()
+        log = {}
         x = self.get_input(batch, self.image_key)
         x = x.to(self.device)
         if only_inputs:
@@ -275,8 +279,7 @@ class VQModelInterface(VQModel):
         else:
             quant = h
         quant = self.post_quant_conv(quant)
-        dec = self.decoder(quant)
-        return dec
+        return self.decoder(quant)
 
 class AutoencoderKL(pl.LightningModule):
     def __init__(self,
@@ -323,7 +326,7 @@ class AutoencoderKL(pl.LightningModule):
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
+                    print(f"Deleting key {k} from state_dict.")
                     del sd[k]
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
@@ -350,20 +353,15 @@ class AutoencoderKL(pl.LightningModule):
     def encode(self, x):
         h = self.encoder(x)
         moments = self.quant_conv(h)
-        posterior = DiagonalGaussianDistribution(moments)
-        return posterior
+        return DiagonalGaussianDistribution(moments)
 
     def decode(self, z):
         z = self.post_quant_conv(z)
-        dec = self.decoder(z)
-        return dec
+        return self.decoder(z)
 
     def forward(self, input, sample_posterior=True):
         posterior = self.encode(input)
-        if sample_posterior:
-            z = posterior.sample()
-        else:
-            z = posterior.mode()
+        z = posterior.sample() if sample_posterior else posterior.mode()
         dec = self.decode(z)
         return dec, posterior
 
@@ -371,8 +369,7 @@ class AutoencoderKL(pl.LightningModule):
         x = batch[k]
         if len(x.shape) == 3:
             x = x[..., None]
-        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
-        return x
+        return x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         inputs = self.get_input(batch, self.image_key)
@@ -404,11 +401,25 @@ class AutoencoderKL(pl.LightningModule):
     def _validation_step(self, batch, batch_idx, postfix=""):
         inputs = self.get_input(batch, self.image_key)
         reconstructions, posterior = self(inputs)
-        aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val"+postfix)
+        aeloss, log_dict_ae = self.loss(
+            inputs,
+            reconstructions,
+            posterior,
+            0,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split=f"val{postfix}",
+        )
 
-        discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val"+postfix)
+        discloss, log_dict_disc = self.loss(
+            inputs,
+            reconstructions,
+            posterior,
+            1,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split=f"val{postfix}",
+        )
 
         self.log(f"val{postfix}/rec_loss", log_dict_ae[f"val{postfix}/rec_loss"])
         self.log_dict(log_dict_ae)
@@ -433,7 +444,7 @@ class AutoencoderKL(pl.LightningModule):
 
     @torch.no_grad()
     def log_images(self, batch, only_inputs=False, log_ema=False, **kwargs):
-        log = dict()
+        log = {}
         x = self.get_input(batch, self.image_key)
         x = x.to(self.device)
         if not only_inputs:
@@ -478,9 +489,7 @@ class IdentityFirstStage(torch.nn.Module):
         return x
 
     def quantize(self, x, *args, **kwargs):
-        if self.vq_interface:
-            return x, None, [None, None, None]
-        return x
+        return (x, None, [None, None, None]) if self.vq_interface else x
 
     def forward(self, x, *args, **kwargs):
         return x

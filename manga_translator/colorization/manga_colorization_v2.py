@@ -50,7 +50,7 @@ class MangaColorizationV2(OfflineColorizer):
             # size<=576 gives best results
             size = min(max_size, 576)
 
-        if 0 <= denoise_sigma and denoise_sigma <= 255:
+        if 0 <= denoise_sigma <= 255:
             img = self.denoiser.get_denoised_image(img, sigma=denoise_sigma)
 
         img, current_pad = resize_pad(img, size)

@@ -60,7 +60,7 @@ def render_lines(
     spacing_y = int(font_size * 0.01)
 
     # make large canvas
-    canvas_w = max([l.length for l in textlines]) + (font_size + bg_size) * 2
+    canvas_w = max(l.length for l in textlines) + (font_size + bg_size) * 2
     canvas_h = font_size * len(textlines) + spacing_y * (len(textlines) - 1)  + (font_size + bg_size) * 2
     canvas_text = np.zeros((canvas_h, canvas_w), dtype=np.uint8)
     canvas_border = canvas_text.copy()
@@ -106,10 +106,7 @@ def seg_eng(text: str) -> List[str]:
     for ii, c in enumerate(text):
         if c in PUNSET_RIGHT_ENG and ii < text_len - 1:
             next_c = text[ii + 1]
-            if next_c.isalpha() or next_c.isnumeric():
-                processed_text += c + ' '
-            else:
-                processed_text += c
+            processed_text += f'{c} ' if next_c.isalpha() or next_c.isnumeric() else c
         else:
             processed_text += c
 
@@ -133,20 +130,20 @@ def seg_eng(text: str) -> List[str]:
                 len_prev = len(words[-1])
             cond_next = (len_word == 2 and len_next <= 4) or len_word == 1
             cond_prev = (len_word == 2 and len_prev <= 4) or len_word == 1
-            if len_next > 0 and len_prev > 0:
-                if len_next < len_prev:
-                    append_right = cond_next
-                else:
-                    append_left = cond_prev
-            elif len_next > 0:
+            if (
+                len_next > 0
+                and len_prev > 0
+                and len_next < len_prev
+                or (len_next <= 0 or len_prev <= 0)
+                and len_next > 0
+            ):
                 append_right = cond_next
-            elif len_prev:
+            elif len_next > 0 or len_prev:
                 append_left = cond_prev
-
             if append_left:
-                words[-1] = words[-1] + ' ' + word
+                words[-1] = f'{words[-1]} {word}'
             elif append_right:
-                words.append(word + ' ' + word_list[ii + 1])
+                words.append(f'{word} {word_list[ii + 1]}')
                 skip_next = True
             else:
                 words.append(word)
@@ -163,7 +160,7 @@ def layout_lines_aligncenter(
     spacing: int = 0,
     delimiter: str = ' ',
     max_central_width: float = np.inf,
-    word_break: bool = False)->List[Textline]:
+    word_break: bool = False) -> List[Textline]:
 
     m = cv2.moments(mask)
     mask = 255 - mask
@@ -217,12 +214,15 @@ def layout_lines_aligncenter(
                     right_valid = True
 
         insert_left = False
-        if left_valid and right_valid:
-            if sum_left > sum_right:
-                insert_left = True
-        elif left_valid:
+        if (
+            left_valid
+            and right_valid
+            and sum_left > sum_right
+            or (not left_valid or not right_valid)
+            and left_valid
+        ):
             insert_left = True
-        elif not right_valid:
+        elif not left_valid and not right_valid:
             break
 
         if insert_left:
@@ -355,7 +355,7 @@ def render_textblock_list_eng(
     """
 
     def calculate_font_values(font_size: int, words: List[str]):
-        font_size = int(font_size)
+        font_size = font_size
         sw = int(font_size * stroke_width)
         line_height = int(font_size * 0.8)
         delimiter_glyph = get_char_glyph(delimiter, font_size, 0)

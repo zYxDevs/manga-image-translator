@@ -65,10 +65,11 @@ def surf(Z, cmap='rainbow', figsize=None):
 
 
 def get_image_paths(dataroot):
-    paths = None  # return None if dataroot is None
-    if dataroot is not None:
-        paths = sorted(_get_paths_from_images(dataroot))
-    return paths
+    return (
+        sorted(_get_paths_from_images(dataroot))
+        if dataroot is not None
+        else None
+    )
 
 
 def _get_paths_from_images(path):
@@ -101,8 +102,7 @@ def patches_from_image(img, p_size=512, p_overlap=64, p_max=800):
 #        print(w1)
 #        print(h1)
         for i in w1:
-            for j in h1:
-                patches.append(img[i:i+p_size, j:j+p_size,:])
+            patches.extend(img[i:i+p_size, j:j+p_size,:] for j in h1)
     else:
         patches.append(img)
 
@@ -118,7 +118,9 @@ def imssave(imgs, img_path):
     for i, img in enumerate(imgs):
         if img.ndim == 3:
             img = img[:, :, [2, 1, 0]]
-        new_path = os.path.join(os.path.dirname(img_path), img_name+str('_s{:04d}'.format(i))+'.png')
+        new_path = os.path.join(
+            os.path.dirname(img_path), img_name + '_s{:04d}'.format(i) + '.png'
+        )
         cv2.imwrite(new_path, img)
 
 
@@ -165,7 +167,7 @@ def mkdirs(paths):
 
 def mkdir_and_rename(path):
     if os.path.exists(path):
-        new_name = path + '_archived_' + get_timestamp()
+        new_name = f'{path}_archived_{get_timestamp()}'
         print('Path already exists. Rename it to [{:s}]'.format(new_name))
         os.rename(path, new_name)
     os.makedirs(path)
@@ -447,23 +449,19 @@ def augment_img_np3(img, mode=0):
         return img[::-1, :, :]
     elif mode == 3:
         img = img[::-1, :, :]
-        img = img.transpose(1, 0, 2)
-        return img
+        return img.transpose(1, 0, 2)
     elif mode == 4:
         return img[:, ::-1, :]
     elif mode == 5:
         img = img[:, ::-1, :]
-        img = img.transpose(1, 0, 2)
-        return img
+        return img.transpose(1, 0, 2)
     elif mode == 6:
         img = img[:, ::-1, :]
-        img = img[::-1, :, :]
-        return img
+        return img[::-1, :, :]
     elif mode == 7:
         img = img[:, ::-1, :]
         img = img[::-1, :, :]
-        img = img.transpose(1, 0, 2)
-        return img
+        return img.transpose(1, 0, 2)
 
 
 def augment_imgs(img_list, hflip=True, rot=True):
@@ -622,7 +620,7 @@ def calculate_psnr(img1, img2, border=0):
     # img1 and img2 have range [0, 255]
     #img1 = img1.squeeze()
     #img2 = img2.squeeze()
-    if not img1.shape == img2.shape:
+    if img1.shape != img2.shape:
         raise ValueError('Input images must have the same dimensions.')
     h, w = img1.shape[:2]
     img1 = img1[border:h-border, border:w-border]
@@ -631,9 +629,7 @@ def calculate_psnr(img1, img2, border=0):
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
     mse = np.mean((img1 - img2)**2)
-    if mse == 0:
-        return float('inf')
-    return 20 * math.log10(255.0 / math.sqrt(mse))
+    return float('inf') if mse == 0 else 20 * math.log10(255.0 / math.sqrt(mse))
 
 
 # --------------------------------------------
@@ -646,7 +642,7 @@ def calculate_ssim(img1, img2, border=0):
     '''
     #img1 = img1.squeeze()
     #img2 = img2.squeeze()
-    if not img1.shape == img2.shape:
+    if img1.shape != img2.shape:
         raise ValueError('Input images must have the same dimensions.')
     h, w = img1.shape[:2]
     img1 = img1[border:h-border, border:w-border]
@@ -656,9 +652,7 @@ def calculate_ssim(img1, img2, border=0):
         return ssim(img1, img2)
     elif img1.ndim == 3:
         if img1.shape[2] == 3:
-            ssims = []
-            for i in range(3):
-                ssims.append(ssim(img1[:,:,i], img2[:,:,i]))
+            ssims = [ssim(img1[:,:,i], img2[:,:,i]) for i in range(3)]
             return np.array(ssims).mean()
         elif img1.shape[2] == 1:
             return ssim(np.squeeze(img1), np.squeeze(img2))
@@ -767,7 +761,7 @@ def imresize(img, scale, antialiasing=True):
     # Now the scale should be the same for H and W
     # input: img: pytorch tensor, CHW or HW [0,1]
     # output: CHW or HW [0,1] w/o round
-    need_squeeze = True if img.dim() == 2 else False
+    need_squeeze = img.dim() == 2
     if need_squeeze:
         img.unsqueeze_(0)
     in_C, in_H, in_W = img.size()
@@ -841,7 +835,7 @@ def imresize_np(img, scale, antialiasing=True):
     # input: img: Numpy, HWC or HW [0,1]
     # output: HWC or HW [0,1] w/o round
     img = torch.from_numpy(img)
-    need_squeeze = True if img.dim() == 2 else False
+    need_squeeze = img.dim() == 2
     if need_squeeze:
         img.unsqueeze_(2)
 

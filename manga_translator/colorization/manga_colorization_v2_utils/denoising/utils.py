@@ -61,6 +61,6 @@ def is_rgb(im_path):
     if (len(im.shape) == 3):
         if not(np.allclose(im[...,0], im[...,1]) and np.allclose(im[...,2], im[...,1])):
             rgb = True
-    print("rgb: {}".format(rgb))
-    print("im shape: {}".format(im.shape))
+    print(f"rgb: {rgb}")
+    print(f"im shape: {im.shape}")
     return rgb

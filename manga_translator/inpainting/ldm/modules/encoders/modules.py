@@ -78,8 +78,7 @@ class FrozenT5Embedder(AbstractEncoder):
         tokens = batch_encoding["input_ids"].to(self.device)
         outputs = self.transformer(input_ids=tokens)
 
-        z = outputs.last_hidden_state
-        return z
+        return outputs.last_hidden_state
 
     def encode(self, text):
         return self(text)
@@ -120,12 +119,11 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         tokens = batch_encoding["input_ids"].to(self.device)
         outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
         if self.layer == "last":
-            z = outputs.last_hidden_state
+            return outputs.last_hidden_state
         elif self.layer == "pooled":
-            z = outputs.pooler_output[:, None, :]
+            return outputs.pooler_output[:, None, :]
         else:
-            z = outputs.hidden_states[self.layer_idx]
-        return z
+            return outputs.hidden_states[self.layer_idx]
 
     def encode(self, text):
         return self(text)
@@ -167,8 +165,7 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
 
     def forward(self, text):
         tokens = open_clip.tokenize(text)
-        z = self.encode_with_transformer(tokens.to(self.device))
-        return z
+        return self.encode_with_transformer(tokens.to(self.device))
 
     def encode_with_transformer(self, text):
         x = self.model.token_embedding(text)  # [batch_size, n_ctx, d_model]

@@ -71,7 +71,7 @@ def test_ctc_loss_custom(device):
 
 
 def test_ctc_loss_custom_gpu(device, fp = torch.float32):
-    print('testing GPU gradient for %s' % str(fp))
+    print(f'testing GPU gradient for {str(fp)}')
     batch_size = 64
     num_labels = 101
     target_length = 15
@@ -114,7 +114,7 @@ def test_ctc_loss_custom_gpu(device, fp = torch.float32):
         rv_x = torch.randn(gradcheck_input_size, dtype=fp, device=device)
         tile_factors_rv = torch.randn(batch_size * input_length * num_realval // gradcheck_input_size + 1,
                                     device=device)
-                                    
+
         targets_realvals = torch.randn(batch_size, input_length, num_realval, dtype=fp)
 
         blank1 = np.random.randint(1, num_labels - 1)
@@ -131,7 +131,7 @@ def test_ctc_loss_custom_gpu(device, fp = torch.float32):
         grad_native = torch.autograd.grad(loss_native, [log_probs, rv_full], grad_out)
         if torch.any(loss_native < 0) :
             breakpoint()
-        
+
         log_probs.requires_grad_(False)
         rv_full.requires_grad_(False)
         log_probs = log_probs.cuda()

@@ -21,10 +21,7 @@ class AddReadout(nn.Module):
         self.start_index = start_index
 
     def forward(self, x):
-        if self.start_index == 2:
-            readout = (x[:, 0] + x[:, 1]) / 2
-        else:
-            readout = x[:, 0]
+        readout = (x[:, 0] + x[:, 1]) / 2 if self.start_index == 2 else x[:, 0]
         return x[:, self.start_index :] + readout.unsqueeze(1)
 
 
@@ -63,10 +60,10 @@ def forward_vit(pretrained, x):
     layer_3 = pretrained.activations["3"]
     layer_4 = pretrained.activations["4"]
 
-    layer_1 = pretrained.act_postprocess1[0:2](layer_1)
-    layer_2 = pretrained.act_postprocess2[0:2](layer_2)
-    layer_3 = pretrained.act_postprocess3[0:2](layer_3)
-    layer_4 = pretrained.act_postprocess4[0:2](layer_4)
+    layer_1 = pretrained.act_postprocess1[:2](layer_1)
+    layer_2 = pretrained.act_postprocess2[:2](layer_2)
+    layer_3 = pretrained.act_postprocess3[:2](layer_3)
+    layer_4 = pretrained.act_postprocess4[:2](layer_4)
 
     unflatten = nn.Sequential(
         nn.Unflatten(
@@ -89,10 +86,10 @@ def forward_vit(pretrained, x):
     if layer_4.ndim == 3:
         layer_4 = unflatten(layer_4)
 
-    layer_1 = pretrained.act_postprocess1[3 : len(pretrained.act_postprocess1)](layer_1)
-    layer_2 = pretrained.act_postprocess2[3 : len(pretrained.act_postprocess2)](layer_2)
-    layer_3 = pretrained.act_postprocess3[3 : len(pretrained.act_postprocess3)](layer_3)
-    layer_4 = pretrained.act_postprocess4[3 : len(pretrained.act_postprocess4)](layer_4)
+    layer_1 = pretrained.act_postprocess1[3:](layer_1)
+    layer_2 = pretrained.act_postprocess2[3:](layer_2)
+    layer_3 = pretrained.act_postprocess3[3:](layer_3)
+    layer_4 = pretrained.act_postprocess4[3:](layer_4)
 
     return layer_1, layer_2, layer_3, layer_4
 
@@ -169,9 +166,7 @@ def get_readout_oper(vit_features, features, use_readout, start_index=1):
     elif use_readout == "add":
         readout_oper = [AddReadout(start_index)] * len(features)
     elif use_readout == "project":
-        readout_oper = [
-            ProjectReadout(vit_features, start_index) for out_feat in features
-        ]
+        readout_oper = [ProjectReadout(vit_features, start_index) for _ in features]
     else:
         assert (
             False
@@ -297,7 +292,7 @@ def _make_vit_b16_backbone(
 def _make_pretrained_vitl16_384(pretrained, use_readout="ignore", hooks=None):
     model = timm.create_model("vit_large_patch16_384", pretrained=pretrained)
 
-    hooks = [5, 11, 17, 23] if hooks == None else hooks
+    hooks = [5, 11, 17, 23] if hooks is None else hooks
     return _make_vit_b16_backbone(
         model,
         features=[256, 512, 1024, 1024],
@@ -310,7 +305,7 @@ def _make_pretrained_vitl16_384(pretrained, use_readout="ignore", hooks=None):
 def _make_pretrained_vitb16_384(pretrained, use_readout="ignore", hooks=None):
     model = timm.create_model("vit_base_patch16_384", pretrained=pretrained)
 
-    hooks = [2, 5, 8, 11] if hooks == None else hooks
+    hooks = [2, 5, 8, 11] if hooks is None else hooks
     return _make_vit_b16_backbone(
         model, features=[96, 192, 384, 768], hooks=hooks, use_readout=use_readout
     )
@@ -319,7 +314,7 @@ def _make_pretrained_vitb16_384(pretrained, use_readout="ignore", hooks=None):
 def _make_pretrained_deitb16_384(pretrained, use_readout="ignore", hooks=None):
     model = timm.create_model("vit_deit_base_patch16_384", pretrained=pretrained)
 
-    hooks = [2, 5, 8, 11] if hooks == None else hooks
+    hooks = [2, 5, 8, 11] if hooks is None else hooks
     return _make_vit_b16_backbone(
         model, features=[96, 192, 384, 768], hooks=hooks, use_readout=use_readout
     )
@@ -330,7 +325,7 @@ def _make_pretrained_deitb16_distil_384(pretrained, use_readout="ignore", hooks=
         "vit_deit_base_distilled_patch16_384", pretrained=pretrained
     )
 
-    hooks = [2, 5, 8, 11] if hooks == None else hooks
+    hooks = [2, 5, 8, 11] if hooks is None else hooks
     return _make_vit_b16_backbone(
         model,
         features=[96, 192, 384, 768],
@@ -480,7 +475,7 @@ def _make_pretrained_vitb_rn50_384(
 ):
     model = timm.create_model("vit_base_resnet50_384", pretrained=pretrained)
 
-    hooks = [0, 1, 8, 11] if hooks == None else hooks
+    hooks = [0, 1, 8, 11] if hooks is None else hooks
     return _make_vit_b_rn50_backbone(
         model,
         features=[256, 512, 768, 768],

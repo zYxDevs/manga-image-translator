@@ -52,15 +52,13 @@ class BaiduTranslator(CommonTranslator):
 
         url = self.get_url(from_lang, to_lang, '\n'.join(n_queries))
         async with aiohttp.ClientSession() as session:
-            async with session.get('https://'+BASE_URL+url) as resp:
+            async with session.get(f'https://{BASE_URL}{url}') as resp:
                 result = await resp.json()
         result_list = []
         if "trans_result" not in result:
             raise InvalidServerResponse(f'Baidu returned invalid response: {result}\nAre the API keys set correctly?')
         for ret in result["trans_result"]:
-            for v in ret["dst"].split('\n'):
-                result_list.append(v)
-
+            result_list.extend(iter(ret["dst"].split('\n')))
         # Join queries that had \n back together
         translations = []
         i = 0
@@ -71,8 +69,7 @@ class BaiduTranslator(CommonTranslator):
         return translations
 
     def _modify_invalid_translation_query(self, query: str, trans: str) -> str:
-        query = re.sub(r'(.)\1{2}', r'\g<0>\n', query)
-        return query
+        return re.sub(r'(.)\1{2}', r'\g<0>\n', query)
 
     @staticmethod
     def get_url(from_lang, to_lang, query_text):
@@ -83,6 +80,4 @@ class BaiduTranslator(CommonTranslator):
         m1 = hashlib.md5()
         m1.update(sign.encode('utf-8'))
         sign = m1.hexdigest()
-        # 拼接URL
-        url = API_URL +'?appid=' + BAIDU_APP_ID + '&q=' + urllib.parse.quote(query_text) + '&from=' + from_lang + '&to=' + to_lang + '&salt=' + str(salt) + '&sign=' + sign
-        return url
+        return f'{API_URL}?appid={BAIDU_APP_ID}&q={urllib.parse.quote(query_text)}&from={from_lang}&to={to_lang}&salt={salt}&sign={sign}'

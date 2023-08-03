@@ -64,9 +64,13 @@ class TranslatorChain():
         for g in string.split(';'):
             trans, lang = g.split(':')
             if trans not in TRANSLATORS:
-                raise ValueError(f'Invalid choice: %s (choose from %s)' % (trans, ', '.join(map(repr, TRANSLATORS))))
+                raise ValueError(
+                    f"Invalid choice: {trans} (choose from {', '.join(map(repr, TRANSLATORS))})"
+                )
             if lang not in VALID_LANGUAGES:
-                raise ValueError(f'Invalid choice: %s (choose from %s)' % (lang, ', '.join(map(repr, VALID_LANGUAGES))))
+                raise ValueError(
+                    f"Invalid choice: {lang} (choose from {', '.join(map(repr, VALID_LANGUAGES))})"
+                )
             self.chain.append((trans, lang))
         self.translators, self.langs = list(zip(*self.chain))
     
@@ -93,11 +97,14 @@ async def dispatch(chain: TranslatorChain, queries: List[str], use_mtpe: bool = 
 
     if chain.target_lang is not None:
         text_lang = ISO_639_1_TO_VALID_LANGUAGES.get(langid.classify('\n'.join(queries))[0])
-        translator = None
-        for key, lang in chain.chain:
-            if text_lang == lang:
-                translator = get_translator(key)
-                break
+        translator = next(
+            (
+                get_translator(key)
+                for key, lang in chain.chain
+                if text_lang == lang
+            ),
+            None,
+        )
         if translator is None:
             translator = get_translator(chain.langs[0])
         if isinstance(translator, OfflineTranslator):

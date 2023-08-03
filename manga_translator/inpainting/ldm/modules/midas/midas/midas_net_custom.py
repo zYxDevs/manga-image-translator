@@ -26,8 +26,8 @@ class MidasNet_small(BaseModel):
 
         super(MidasNet_small, self).__init__()
 
-        use_pretrained = False if path else True
-                
+        use_pretrained = not path
+
         self.channels_last = channels_last
         self.blocks = blocks
         self.backbone = backbone
@@ -47,7 +47,7 @@ class MidasNet_small(BaseModel):
             features4=features*8
 
         self.pretrained, self.scratch = _make_encoder(self.backbone, features, use_pretrained, groups=self.groups, expand=self.expand, exportable=exportable)
-  
+
         self.scratch.activation = nn.ReLU(False)    
 
         self.scratch.refinenet4 = FeatureFusionBlock_custom(features4, self.scratch.activation, deconv=False, bn=False, expand=self.expand, align_corners=align_corners)
@@ -55,7 +55,7 @@ class MidasNet_small(BaseModel):
         self.scratch.refinenet2 = FeatureFusionBlock_custom(features2, self.scratch.activation, deconv=False, bn=False, expand=self.expand, align_corners=align_corners)
         self.scratch.refinenet1 = FeatureFusionBlock_custom(features1, self.scratch.activation, deconv=False, bn=False, align_corners=align_corners)
 
-        
+
         self.scratch.output_conv = nn.Sequential(
             nn.Conv2d(features, features//2, kernel_size=3, stride=1, padding=1, groups=self.groups),
             Interpolate(scale_factor=2, mode="bilinear"),
@@ -65,7 +65,7 @@ class MidasNet_small(BaseModel):
             nn.ReLU(True) if non_negative else nn.Identity(),
             nn.Identity(),
         )
-        
+
         if path:
             self.load(path)
 

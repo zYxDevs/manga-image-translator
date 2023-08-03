@@ -60,14 +60,20 @@ class MultidilatedConv(nn.Module):
             if equal_dim:
                 assert out_dim % dilation_num == 0
                 out_dims = [out_dim // dilation_num] * dilation_num
-                self.index = sum([[i + j * (out_dims[0]) for j in range(dilation_num)] for i in range(out_dims[0])], [])
+                self.index = sum(
+                    (
+                        [i + j * (out_dims[0]) for j in range(dilation_num)]
+                        for i in range(out_dims[0])
+                    ),
+                    [],
+                )
             else:
                 out_dims = [out_dim // 2 ** (i + 1) for i in range(dilation_num - 1)]
                 out_dims.append(out_dim - sum(out_dims))
                 index = []
                 starts = [0] + out_dims[:-1]
                 lengths = [out_dims[i] // out_dims[-1] for i in range(dilation_num)]
-                for i in range(out_dims[-1]):
+                for _ in range(out_dims[-1]):
                     for j in range(dilation_num):
                         index += list(range(starts[j], starts[j] + lengths[j]))
                         starts[j] += lengths[j]
@@ -94,10 +100,7 @@ class MultidilatedConv(nn.Module):
         conv_type = DepthWiseSeperableConv if use_depthwise else nn.Conv2d
         dilation = min_dilation
         for i in range(dilation_num):
-            if isinstance(padding, int):
-                cur_padding = padding * dilation
-            else:
-                cur_padding = padding[i]
+            cur_padding = padding * dilation if isinstance(padding, int) else padding[i]
             convs.append(conv_type(
                 self.in_dims[i], self.out_dims[i], kernel_size, padding=cur_padding, dilation=dilation, **kwargs
             ))
@@ -131,16 +134,9 @@ class MultidilatedConv(nn.Module):
                     start += dim
                 x = new_x
         for i, conv in enumerate(self.convs):
-            if self.cat_in:
-                input = x[i]
-            else:
-                input = x
+            input = x[i] if self.cat_in else x
             outs.append(conv(input))
-        if self.cat_out:
-            out = torch.cat(outs, dim=1)[:, self.index]
-        else:
-            out = sum(outs)
-        return out
+        return torch.cat(outs, dim=1)[:, self.index] if self.cat_out else sum(outs)
 
 class BaseDiscriminator(nn.Module):
     @abc.abstractmethod
@@ -206,8 +202,7 @@ class LearnableSpatialTransformWrapper(nn.Module):
         height, width = x.shape[2:]
         pad_h, pad_w = int(height * self.pad_coef), int(width * self.pad_coef)
         x_padded = F.pad(x, [pad_w, pad_w, pad_h, pad_h], mode='reflect')
-        x_padded_rotated = rotate(x_padded, angle=self.angle.to(x_padded))
-        return x_padded_rotated
+        return rotate(x_padded, angle=self.angle.to(x_padded))
 
     def inverse_transform(self, y_padded_rotated, orig_x):
         height, width = orig_x.shape[2:]
@@ -215,8 +210,7 @@ class LearnableSpatialTransformWrapper(nn.Module):
 
         y_padded = rotate(y_padded_rotated, angle=-self.angle.to(y_padded_rotated))
         y_height, y_width = y_padded.shape[2:]
-        y = y_padded[:, :, pad_h : y_height - pad_h, pad_w : y_width - pad_w]
-        return y
+        return y_padded[:, :, pad_h : y_height - pad_h, pad_w : y_width - pad_w]
 
 class FFCSE_block(nn.Module):
 
@@ -265,8 +259,7 @@ class SELayer(nn.Module):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
-        res = x * y.expand_as(x)
-        return res
+        return x * y.expand_as(x)
 
 class FourierUnit(nn.Module):
 
@@ -393,7 +386,7 @@ class FFC(nn.Module):
                  padding_type='reflect', gated=False, **spectral_kwargs):
         super(FFC, self).__init__()
 
-        assert stride == 1 or stride == 2, "Stride should be 1 or 2."
+        assert stride in [1, 2], "Stride should be 1 or 2."
         self.stride = stride
 
         in_cg = int(in_channels * ratio_gin)
@@ -519,9 +512,7 @@ class ConcatTupleLayer(nn.Module):
         assert isinstance(x, tuple)
         x_l, x_g = x
         assert torch.is_tensor(x_l) or torch.is_tensor(x_g)
-        if not torch.is_tensor(x_g):
-            return x_l
-        return torch.cat(x, dim=1)
+        return x_l if not torch.is_tensor(x_g) else torch.cat(x, dim=1)
 
 
 class FFCResNetGenerator(nn.Module):
@@ -635,12 +626,12 @@ class FFCNLayerDiscriminator(BaseDiscriminator):
         sequence += [[nn.Conv2d(nf, 1, kernel_size=kw, stride=1, padding=padw)]]
 
         for n in range(len(sequence)):
-            setattr(self, 'model'+str(n), nn.Sequential(*sequence[n]))
+            setattr(self, f'model{str(n)}', nn.Sequential(*sequence[n]))
 
     def get_all_activations(self, x):
         res = [x]
         for n in range(self.n_layers + 2):
-            model = getattr(self, 'model' + str(n))
+            model = getattr(self, f'model{str(n)}')
             res.append(model(res[-1]))
         return res[1:]
 
@@ -649,10 +640,7 @@ class FFCNLayerDiscriminator(BaseDiscriminator):
         feats = []
         for out in act[:-1]:
             if isinstance(out, tuple):
-                if torch.is_tensor(out[1]):
-                    out = torch.cat(out, dim=1)
-                else:
-                    out = out[0]
+                out = torch.cat(out, dim=1) if torch.is_tensor(out[1]) else out[0]
             feats.append(out)
         return act[-1], feats
 

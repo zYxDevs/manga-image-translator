@@ -29,7 +29,7 @@ def concatenate_input_noise_map(input, noise_sigma):
     N, C, H, W = input.size()
     dtype = input.type()
     sca = 2
-    sca2 = sca*sca
+    sca2 = sca**2
     Cout = sca2*C
     Hout = H//sca
     Wout = W//sca
@@ -64,7 +64,7 @@ class UpSampleFeaturesFunction(Function):
         N, Cin, Hin, Win = input.size()
         dtype = input.type()
         sca = 2
-        sca2 = sca*sca
+        sca2 = sca**2
         Cout = Cin//sca2
         Hout = Hin*sca
         Wout = Win*sca
@@ -83,7 +83,7 @@ class UpSampleFeaturesFunction(Function):
         N, Cg_out, Hg_out, Wg_out = grad_output.size()
         dtype = grad_output.data.type()
         sca = 2
-        sca2 = sca*sca
+        sca2 = sca**2
         Cg_in = sca2*Cg_out
         Hg_in = Hg_out//sca
         Wg_in = Wg_out//sca

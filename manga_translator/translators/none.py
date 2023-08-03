@@ -8,4 +8,4 @@ class NoneTranslator(CommonTranslator):
         return True
 
     async def _translate(self, from_lang: str, to_lang: str, queries: List[str]) -> List[str]:
-        return ['' for query in queries]
+        return ['' for _ in queries]

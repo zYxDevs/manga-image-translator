@@ -27,7 +27,7 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 def find_all_imgs(img_dir, abs_path=False):
-    imglist = list()
+    imglist = []
     for filep in glob.glob(osp.join(img_dir, "*")):
         filename = osp.basename(filep)
         file_suffix = Path(filename).suffix
@@ -40,10 +40,7 @@ def find_all_imgs(img_dir, abs_path=False):
     return imglist
 
 def imread(imgpath, read_type=cv2.IMREAD_COLOR):
-    # img = cv2.imread(imgpath, read_type)
-    # if img is None:
-    img = cv2.imdecode(np.fromfile(imgpath, dtype=np.uint8), read_type)
-    return img
+    return cv2.imdecode(np.fromfile(imgpath, dtype=np.uint8), read_type)
 
 def imwrite(img_path, img, ext='.png'):
     suffix = Path(img_path).suffix

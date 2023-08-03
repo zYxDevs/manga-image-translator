@@ -35,7 +35,7 @@ def split_text_region(
                 and abs(bboxes[connected_region_indices[0]].angle - bboxes[connected_region_indices[1]].angle) < 0.2 * np.pi:
             return [set(connected_region_indices)]
         else:
-            return [set([connected_region_indices[0]]), set([connected_region_indices[1]])]
+            return [{connected_region_indices[0]}, {connected_region_indices[1]}]
 
     # case 3
     G = nx.Graph()
@@ -52,27 +52,23 @@ def split_text_region(
     distances_mean = np.mean(distances_sorted)
     std_threshold = max(0.3 * fontsize + 5, 5)
 
-    # print(edges)
-    # print(f'std: {distances_std} < thrshold: {std_threshold}, mean: {distances_mean}')
-
     if (distances_sorted[0] <= distances_mean + distances_std * sigma \
             or distances_sorted[0] <= fontsize * (1 + gamma) \
             or distances_sorted[0] - distances_sorted[1] < distances_std * sigma \
             ) and distances_std < std_threshold:
         return [set(connected_region_indices)]
-    else:
-        # (split_u, split_v, _) = edges[0]
-        # print(f'split between "{bboxes[split_u].pts}", "{bboxes[split_v].pts}"')
-        G = nx.Graph()
-        for idx in connected_region_indices:
-            G.add_node(idx)
-        # Split out the most deviating bbox
-        for edge in edges[1:]:
-            G.add_edge(edge[0], edge[1])
-        ans = []
-        for node_set in nx.algorithms.components.connected_components(G):
-            ans.extend(split_text_region(bboxes, node_set, width, height))
-        return ans
+    # (split_u, split_v, _) = edges[0]
+    # print(f'split between "{bboxes[split_u].pts}", "{bboxes[split_v].pts}"')
+    G = nx.Graph()
+    for idx in connected_region_indices:
+        G.add_node(idx)
+    # Split out the most deviating bbox
+    for edge in edges[1:]:
+        G.add_edge(edge[0], edge[1])
+    ans = []
+    for node_set in nx.algorithms.components.connected_components(G):
+        ans.extend(split_text_region(bboxes, node_set, width, height))
+    return ans
 
 # def get_mini_boxes(contour):
 #     bounding_box = cv2.minAreaRect(contour)
@@ -167,12 +163,10 @@ async def dispatch(textlines: List[Quadrilateral], width: int, height: int, verb
 
     text_regions: List[TextBlock] = []
     for (txtlns, fg_color, bg_color) in merge_bboxes_text_region(textlines, width, height):
-        total_logprobs = 0
-        for txtln in txtlns:
-            total_logprobs += np.log(txtln.prob) * txtln.area
-        total_logprobs /= sum([txtln.area for txtln in textlines])
+        total_logprobs = sum(np.log(txtln.prob) * txtln.area for txtln in txtlns)
+        total_logprobs /= sum(txtln.area for txtln in textlines)
 
-        font_size = int(min([txtln.font_size for txtln in txtlns]))
+        font_size = int(min(txtln.font_size for txtln in txtlns))
         angle = np.rad2deg(np.mean([txtln.angle for txtln in txtlns])) - 90
         if abs(angle) < 3:
             angle = 0

@@ -49,8 +49,8 @@ class GPT3Translator(CommonTranslator):
             raise MissingAPIKeyException('Please set the OPENAI_API_KEY environment variable before using the chatgpt translator.')
         if OPENAI_HTTP_PROXY:
             proxies = {
-                'http': 'http://%s' % OPENAI_HTTP_PROXY,
-                'https': 'http://%s' % OPENAI_HTTP_PROXY
+                'http': f'http://{OPENAI_HTTP_PROXY}',
+                'https': f'http://{OPENAI_HTTP_PROXY}',
             }
             openai.proxy = proxies
         self.token_count = 0
@@ -60,7 +60,7 @@ class GPT3Translator(CommonTranslator):
         global CONFIG
         if CONFIG is None:
             return default
-        return CONFIG.get(self._CONFIG_KEY + '.' + key, CONFIG.get(key, default))
+        return CONFIG.get(f'{self._CONFIG_KEY}.{key}', CONFIG.get(key, default))
 
     @property
     def prompt_template(self) -> str:

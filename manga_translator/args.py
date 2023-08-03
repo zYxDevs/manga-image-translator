@@ -62,21 +62,14 @@ class HelpFormatter(argparse.HelpFormatter):
         super().__init__(prog, self.INDENT_INCREMENT, self.MAX_HELP_POSITION, self.WIDTH)
 
     def _format_action_invocation(self, action: argparse.Action) -> str:
-        if action.option_strings:
-
-            # if the Optional doesn't take a value, format is:
-            #    -s, --long
-            if action.nargs == 0:
-                return ', '.join(action.option_strings)
-
-            # if the Optional takes a value, format is:
-            #    -s, --long ARGS
-            else:
-                default = self._get_default_metavar_for_optional(action)
-                args_string = self._format_args(action, default)
-                return ', '.join(action.option_strings) + ' ' + args_string
-        else:
+        if not action.option_strings:
             return super()._format_action_invocation(action)
+        if action.nargs == 0:
+            return ', '.join(action.option_strings)
+
+        default = self._get_default_metavar_for_optional(action)
+        args_string = self._format_args(action, default)
+        return ', '.join(action.option_strings) + ' ' + args_string
 
 
 parser = argparse.ArgumentParser(prog='manga_translator', description='Seamlessly translate mangas into a chosen language', formatter_class=HelpFormatter)

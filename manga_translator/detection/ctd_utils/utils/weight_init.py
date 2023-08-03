@@ -52,21 +52,20 @@ def kaiming_init(module,
                                      mode=mode,
                                      nonlinearity=nonlinearity)
 
+    elif is_rnn:
+        for name, param in module.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, bias)
+            elif 'weight' in name:
+                nn.init.kaiming_normal_(param,
+                                        a=a,
+                                        mode=mode,
+                                        nonlinearity=nonlinearity)
     else:
-        if is_rnn:
-            for name, param in module.named_parameters():
-                if 'bias' in name:
-                    nn.init.constant_(param, bias)
-                elif 'weight' in name:
-                    nn.init.kaiming_normal_(param,
-                                            a=a,
-                                            mode=mode,
-                                            nonlinearity=nonlinearity)
-        else:
-            nn.init.kaiming_normal_(module.weight,
-                                    a=a,
-                                    mode=mode,
-                                    nonlinearity=nonlinearity)
+        nn.init.kaiming_normal_(module.weight,
+                                a=a,
+                                mode=mode,
+                                nonlinearity=nonlinearity)
 
     if not is_rnn and hasattr(module, 'bias') and module.bias is not None:
         nn.init.constant_(module.bias, bias)
@@ -74,10 +73,7 @@ def kaiming_init(module,
 
 def bilinear_kernel(in_channels, out_channels, kernel_size):
     factor = (kernel_size + 1) // 2
-    if kernel_size % 2 == 1:
-        center = factor - 1
-    else:
-        center = factor - 0.5
+    center = factor - 1 if kernel_size % 2 == 1 else factor - 0.5
     og = (torch.arange(kernel_size).reshape(-1, 1),
           torch.arange(kernel_size).reshape(1, -1))
     filt = (1 - torch.abs(og[0] - center) / factor) * \

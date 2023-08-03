@@ -60,7 +60,7 @@ class Model32pxOCR(OfflineOCR):
 
         perm = range(len(region_imgs))
         is_quadrilaterals = False
-        if len(quadrilaterals) > 0 and isinstance(quadrilaterals[0][0], Quadrilateral):
+        if quadrilaterals and isinstance(quadrilaterals[0][0], Quadrilateral):
             perm = sorted(range(len(region_imgs)), key = lambda x: region_imgs[x].shape[1])
             is_quadrilaterals = True
 
@@ -73,8 +73,11 @@ class Model32pxOCR(OfflineOCR):
             for i, idx in enumerate(indices):
                 W = region_imgs[idx].shape[1]
                 tmp = region_imgs[idx]
-                # Determine whether to skip the text block, and return True to skip.
-                if ignore_bubble >=1 and ignore_bubble <=50 and is_ignore(region_imgs[idx],ignore_bubble):
+                if (
+                    ignore_bubble >= 1
+                    and ignore_bubble <= 50
+                    and is_ignore(tmp, ignore_bubble)
+                ):
                     ix+=1
                     continue
                 region[i, :, : W, :]=tmp
@@ -129,9 +132,7 @@ class Model32pxOCR(OfflineOCR):
 
                 out_regions.append(cur_region)
 
-        if is_quadrilaterals:
-            return out_regions
-        return textlines
+        return out_regions if is_quadrilaterals else textlines
 
 
 class ResNet(nn.Module):
@@ -184,12 +185,9 @@ class ResNet(nn.Module):
                           kernel_size=1, stride=stride, bias=False),
             )
 
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers = [block(self.inplanes, planes, stride, downsample)]
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
+        layers.extend(block(self.inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -299,7 +297,11 @@ class PositionalEncoding(nn.Module):
 
 def generate_square_subsequent_mask(sz):
     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-    mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+    mask = (
+        mask.float()
+        .masked_fill(mask == 0, float('-inf'))
+        .masked_fill(mask == 1, 0.0)
+    )
     return mask
 
 class AddCoords(nn.Module):
@@ -530,8 +532,10 @@ class OCR(nn.Module):
         new_hypos = []
         finished_hypos = defaultdict(list)
         for i in range(N):
-            for k in range(beams_k):
-                new_hypos.append(hypos[i].extend(pred_chars_index[i, k], pred_chars_values[i, k]))
+            new_hypos.extend(
+                hypos[i].extend(pred_chars_index[i, k], pred_chars_values[i, k])
+                for k in range(beams_k)
+            )
         hypos = new_hypos
         for _ in range(max_seq_length):
             # N * k, E
@@ -547,8 +551,7 @@ class OCR(nn.Module):
                     hypos_per_sample[h.memory_idx].append(h.extend(pred_chars_index[i, k], pred_chars_values[i, k]))
             hypos = []
             # hypos_per_sample now contains N * k^2 hypos
-            for i in hypos_per_sample.keys():
-                cur_hypos: List[Hypothesis] = hypos_per_sample[i]
+            for i, cur_hypos in hypos_per_sample.items():
                 cur_hypos = sorted(cur_hypos, key = lambda a: a.sort_key())[: beams_k + 1]
                 #print(cur_hypos[0].out_idx[-1])
                 to_added_hypos = []
@@ -559,12 +562,11 @@ class OCR(nn.Module):
                         if len(finished_hypos[i]) >= max_finished_hypos:
                             sample_done = True
                             break
-                    else:
-                        if len(to_added_hypos) < beams_k:
-                            to_added_hypos.append(h)
+                    elif len(to_added_hypos) < beams_k:
+                        to_added_hypos.append(h)
                 if not sample_done:
                     hypos.extend(to_added_hypos)
-            if len(hypos) == 0:
+            if not hypos:
                 break
         # add remaining hypos to finished
         for i in range(N):
@@ -580,11 +582,11 @@ class OCR(nn.Module):
             decoded = cur_hypo.output()
             color_feats = self.color_pred1(decoded)
             fg_r, fg_g, fg_b, bg_r, bg_g, bg_b = self.fg_r_pred(color_feats), \
-                self.fg_g_pred(color_feats), \
-                self.fg_b_pred(color_feats), \
-                self.bg_r_pred(color_feats), \
-                self.bg_g_pred(color_feats), \
-                self.bg_b_pred(color_feats)
+                    self.fg_g_pred(color_feats), \
+                    self.fg_b_pred(color_feats), \
+                    self.bg_r_pred(color_feats), \
+                    self.bg_g_pred(color_feats), \
+                    self.bg_b_pred(color_feats)
             result.append((cur_hypo.out_idx, cur_hypo.prob(), fg_r, fg_g, fg_b, bg_r, bg_g, bg_b))
         return result
 
@@ -613,15 +615,15 @@ class OCR(nn.Module):
             pred_char_logprob = self.pred(self.pred1(decoded)).log_softmax(-1)
             if char_only:
                 return pred_char_logprob
-            else:
-                color_feats = self.color_pred1(decoded)
-                return pred_char_logprob, \
+            color_feats = self.color_pred1(decoded)
+            return pred_char_logprob, \
                     self.fg_r_pred(color_feats), \
                     self.fg_g_pred(color_feats), \
                     self.fg_b_pred(color_feats), \
                     self.bg_r_pred(color_feats), \
                     self.bg_g_pred(color_feats), \
                     self.bg_b_pred(color_feats)
+
         # N, L, embd_size
         initial_char_logprob = run([])
         # N, L

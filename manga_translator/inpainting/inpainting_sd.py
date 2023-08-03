@@ -88,19 +88,13 @@ class StableDiffusionInpainter(OfflineInpainter):
         mask_original = mask_original[:, :, None]
 
         height, width, c = image.shape
-        if max(image.shape[0: 2]) > inpainting_size:
+        if max(image.shape[:2]) > inpainting_size:
             image = resize_keep_aspect(image, inpainting_size)
             mask = resize_keep_aspect(mask, inpainting_size)
         pad_size = 64
         h, w, c = image.shape
-        if h % pad_size != 0:
-            new_h = (pad_size - (h % pad_size)) + h
-        else:
-            new_h = h
-        if w % pad_size != 0:
-            new_w = (pad_size - (w % pad_size)) + w
-        else:
-            new_w = w
+        new_h = (pad_size - (h % pad_size)) + h if h % pad_size != 0 else h
+        new_w = (pad_size - (w % pad_size)) + w if w % pad_size != 0 else w
         if new_h != h or new_w != w:
             image = cv2.resize(image, (new_w, new_h), interpolation = cv2.INTER_LINEAR)
             mask = cv2.resize(mask, (new_w, new_h), interpolation = cv2.INTER_LINEAR)
@@ -109,7 +103,7 @@ class StableDiffusionInpainter(OfflineInpainter):
         self.logger.info(f'tags={list(tags.keys())}')
         blacklist = set()
         pos_prompt = ','.join([x for x in tags.keys() if x not in blacklist]).replace('_', ' ')
-        pos_prompt = 'masterpiece,best quality,' + pos_prompt
+        pos_prompt = f'masterpiece,best quality,{pos_prompt}'
         neg_prompt = 'worst quality, low quality, normal quality,text,text,text,text'
 
         if self.use_cuda :
@@ -133,5 +127,4 @@ class StableDiffusionInpainter(OfflineInpainter):
         img_inpainted = (einops.rearrange(img, '1 c h w -> h w c').cpu().numpy() * 127.5 + 127.5).astype(np.uint8)
         if new_h != height or new_w != width:
             img_inpainted = cv2.resize(img_inpainted, (width, height), interpolation = cv2.INTER_LINEAR)
-        ans = img_inpainted * mask_original + img_original * (1 - mask_original)
-        return ans
+        return img_inpainted * mask_original + img_original * (1 - mask_original)

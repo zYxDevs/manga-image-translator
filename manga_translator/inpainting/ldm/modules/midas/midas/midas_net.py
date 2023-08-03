@@ -25,7 +25,7 @@ class MidasNet(BaseModel):
 
         super(MidasNet, self).__init__()
 
-        use_pretrained = False if path is None else True
+        use_pretrained = path is not None
 
         self.pretrained, self.scratch = _make_encoder(backbone="resnext101_wsl", features=features, use_pretrained=use_pretrained)
 

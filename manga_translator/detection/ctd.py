@@ -21,10 +21,10 @@ def preprocess_img(img, input_size=(1024, 1024), device='cpu', bgr2rgb=True, hal
     if to_tensor:
         img_in = img_in.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img_in = np.array([np.ascontiguousarray(img_in)]).astype(np.float32) / 255
-        if to_tensor:
-            img_in = torch.from_numpy(img_in).to(device)
-            if half:
-                img_in = img_in.half()
+    if to_tensor:
+        img_in = torch.from_numpy(img_in).to(device)
+        if half:
+            img_in = img_in.half()
     return img_in, ratio, int(dw), int(dh)
 
 def postprocess_mask(img: Union[torch.Tensor, np.ndarray], thresh=None):
@@ -116,9 +116,7 @@ class ComicTextDetector(OfflineDetector):
             for b in batch:
                 _, mask, lines = self.model(b)
                 if mask.shape[1] == 2:     # some version of opencv spit out reversed result
-                    tmp = mask
-                    mask = lines
-                    lines = tmp
+                    mask, lines = lines, mask
                 mask_lst.append(mask)
                 line_lst.append(lines)
             lines, mask = np.concatenate(line_lst, 0), np.concatenate(mask_lst, 0)
@@ -143,9 +141,7 @@ class ComicTextDetector(OfflineDetector):
 
             if self.backend == 'opencv':
                 if mask.shape[1] == 2: # some version of opencv spit out reversed result
-                    tmp = mask
-                    mask = lines_map
-                    lines_map = tmp
+                    mask, lines_map = lines_map, mask
             mask = mask.squeeze()
             # resize_ratio = (im_w / (self.input_size[0] - dw), im_h / (self.input_size[1] - dh))
             # blks = postprocess_yolo(blks, self.conf_thresh, self.nms_thresh, resize_ratio)

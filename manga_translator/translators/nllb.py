@@ -65,7 +65,7 @@ class NLLBTranslator(OfflineTranslator):
             detected_lang = langid.classify('\n'.join(queries))[0]
             target_lang = self._map_detected_lang_to_translator(detected_lang)
 
-            if target_lang == None:
+            if target_lang is None:
                 self.logger.warn('Could not detect language from over all sentence. Will try per sentence.')
             else:
                 from_lang = target_lang
@@ -82,7 +82,7 @@ class NLLBTranslator(OfflineTranslator):
             detected_lang = langid.classify(query)[0]
             from_lang = self._map_detected_lang_to_translator(detected_lang)
 
-        if from_lang == None:
+        if from_lang is None:
             self.logger.warn(f'NLLB Translation Failed. Could not detect language (Or language not supported for text: {query})')
             return ''
 
@@ -95,11 +95,10 @@ class NLLBTranslator(OfflineTranslator):
             max_length = 512,
         )
 
-        result = translator(query)[0]['translation_text']
-        return result
+        return translator(query)[0]['translation_text']
 
     def _map_detected_lang_to_translator(self, lang):
-        if not lang in ISO_639_1_TO_FLORES_200:
+        if lang not in ISO_639_1_TO_FLORES_200:
             return None
 
         return ISO_639_1_TO_FLORES_200[lang]

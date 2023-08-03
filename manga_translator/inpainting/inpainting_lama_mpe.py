@@ -47,19 +47,13 @@ class LamaMPEInpainter(OfflineInpainter):
         mask_original = mask_original[:, :, None]
 
         height, width, c = image.shape
-        if max(image.shape[0: 2]) > inpainting_size:
+        if max(image.shape[:2]) > inpainting_size:
             image = resize_keep_aspect(image, inpainting_size)
             mask = resize_keep_aspect(mask, inpainting_size)
         pad_size = 8
         h, w, c = image.shape
-        if h % pad_size != 0:
-            new_h = (pad_size - (h % pad_size)) + h
-        else:
-            new_h = h
-        if w % pad_size != 0:
-            new_w = (pad_size - (w % pad_size)) + w
-        else:
-            new_w = w
+        new_h = (pad_size - (h % pad_size)) + h if h % pad_size != 0 else h
+        new_w = (pad_size - (w % pad_size)) + w if w % pad_size != 0 else w
         if new_h != h or new_w != w:
             image = cv2.resize(image, (new_w, new_h), interpolation = cv2.INTER_LINEAR)
             mask = cv2.resize(mask, (new_w, new_h), interpolation = cv2.INTER_LINEAR)
@@ -83,8 +77,7 @@ class LamaMPEInpainter(OfflineInpainter):
             img_inpainted = ((img_inpainted_torch.cpu().squeeze_(0).permute(1, 2, 0).numpy() + 1.0) * 127.5).astype(np.uint8)
         if new_h != height or new_w != width:
             img_inpainted = cv2.resize(img_inpainted, (width, height), interpolation = cv2.INTER_LINEAR)
-        ans = img_inpainted * mask_original + img_original * (1 - mask_original)
-        return ans
+        return img_inpainted * mask_original + img_original * (1 - mask_original)
 
 
 def set_requires_grad(module, value):
@@ -267,7 +260,7 @@ class FFC(nn.Module):
                  padding_type='reflect', gated=False, **spectral_kwargs):
         super(FFC, self).__init__()
 
-        assert stride == 1 or stride == 2, "Stride should be 1 or 2."
+        assert stride in [1, 2], "Stride should be 1 or 2."
         self.stride = stride
 
         in_cg = int(in_channels * ratio_gin)
@@ -428,9 +421,7 @@ class MultiLabelEmbedding(nn.Module):
         nn.init.normal_(self.weight)
 
     def forward(self, input_ids):
-        # input_ids:[B,HW,4](onehot)
-        out = torch.matmul(input_ids, self.weight)  # [B,HW,dim]
-        return out
+        return torch.matmul(input_ids, self.weight)
 
 
 class NLayerDiscriminator(nn.Module):
@@ -444,7 +435,7 @@ class NLayerDiscriminator(nn.Module):
                      nn.LeakyReLU(0.2, True)]]
 
         nf = ndf
-        for n in range(1, n_layers):
+        for _ in range(1, n_layers):
             nf_prev = nf
             nf = min(nf * 2, 512)
 
@@ -470,12 +461,12 @@ class NLayerDiscriminator(nn.Module):
         sequence += [[nn.Conv2d(nf, 1, kernel_size=kw, stride=1, padding=padw)]]
 
         for n in range(len(sequence)):
-            setattr(self, 'model'+str(n), nn.Sequential(*sequence[n]))
+            setattr(self, f'model{str(n)}', nn.Sequential(*sequence[n]))
 
     def get_all_activations(self, x):
         res = [x]
         for n in range(self.n_layers + 2):
-            model = getattr(self, 'model' + str(n))
+            model = getattr(self, f'model{str(n)}')
             res.append(model(res[-1]))
         return res[1:]
 
@@ -489,9 +480,7 @@ class ConcatTupleLayer(nn.Module):
         assert isinstance(x, tuple)
         x_l, x_g = x
         assert torch.is_tensor(x_l) or torch.is_tensor(x_g)
-        if not torch.is_tensor(x_g):
-            return x_l
-        return torch.cat(x, dim=1)
+        return x_l if not torch.is_tensor(x_g) else torch.cat(x, dim=1)
 
 
 class FFCResNetGenerator(nn.Module):
@@ -556,13 +545,11 @@ class FFCResNetGenerator(nn.Module):
         masked_img = torch.cat([img * (1 - mask), mask], dim=1)
         if rel_pos is None:
             return self.model(masked_img)
-        else:
-
-            x_l, x_g = self.model[:2](masked_img)
-            x_l = x_l.to(torch.float32)
-            x_l += rel_pos
-            x_l += direct
-            return self.model[2:]((x_l, x_g))
+        x_l, x_g = self.model[:2](masked_img)
+        x_l = x_l.to(torch.float32)
+        x_l += rel_pos
+        x_l += direct
+        return self.model[2:]((x_l, x_g))
 
 
 class MPE(nn.Module):
@@ -606,10 +593,7 @@ class LamaFourier:
         self.enable_fp16 = False
         self.discriminator = NLayerDiscriminator() if build_discriminator else None
         self.inpaint_only = False
-        if use_mpe:
-            self.mpe = MPE()
-        else:
-            self.mpe = None
+        self.mpe = MPE() if use_mpe else None
 
     def train_generator(self):
         self.inpaint_only = False
@@ -704,18 +688,18 @@ class LamaFourier:
         pos_num = 128
 
         ori_mask = mask.copy()
-        ori_h, ori_w = ori_mask.shape[0:2]
+        ori_h, ori_w = ori_mask.shape[:2]
         ori_mask = ori_mask / 255
         mask = cv2.resize(mask, (str_size, str_size), interpolation=cv2.INTER_AREA)
         mask[mask > 0] = 255
-        h, w = mask.shape[0:2]
+        h, w = mask.shape[:2]
         mask3 = mask.copy()
         mask3 = 1. - (mask3 / 255.0)
         pos = np.zeros((h, w), dtype=np.int32)
         direct = np.zeros((h, w, 4), dtype=np.int32)
-        i = 0
-
         if mask3.max() > 0:
+            i = 0
+
             # otherwise it will cause infinity loop
             while np.sum(1 - mask3) > 0:
                 i += 1

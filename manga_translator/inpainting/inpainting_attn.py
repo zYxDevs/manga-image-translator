@@ -247,5 +247,4 @@ class InpaintingVanilla(nn.Module):
         self.coarse_generator = CoarseGenerator(4, 3, 32)
 
     def forward(self, x, mask):
-        x_stage1 = self.coarse_generator(x, mask)
-        return x_stage1
+        return self.coarse_generator(x, mask)
