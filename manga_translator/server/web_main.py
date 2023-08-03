@@ -40,8 +40,8 @@ VALID_LANGUAGES = {
     'VIN': 'Vietnamese',
 }
 # Whitelists
-VALID_DETECTORS = set(['default', 'ctd'])
-VALID_DIRECTIONS = set(['auto', 'h', 'v'])
+VALID_DETECTORS = {'default', 'ctd'}
+VALID_DIRECTIONS = {'auto', 'h', 'v'}
 VALID_TRANSLATORS = [
     'youdao',
     'baidu',
@@ -244,8 +244,7 @@ async def index_async(request):
     # Can be extended to allow support for multiple translators
     rqjson = await request.json()
     if constant_compare(rqjson.get('nonce'), NONCE):
-        capabilities = rqjson.get('capabilities')
-        if capabilities:
+        if capabilities := rqjson.get('capabilities'):
             translators = capabilities.get('translators')
             AVAILABLE_TRANSLATORS.clear()
             for key in VALID_TRANSLATORS:
@@ -260,20 +259,18 @@ async def get_task_async(request):
     """
     global NONCE, ONGOING_TASKS, DEFAULT_TRANSLATION_PARAMS
     if constant_compare(request.rel_url.query.get('nonce'), NONCE):
-        if len(QUEUE) > 0 and len(ONGOING_TASKS) < MAX_ONGOING_TASKS:
-            task_id = QUEUE.popleft()
-            if task_id in TASK_DATA:
-                data = TASK_DATA[task_id]
-                for p, default_value in DEFAULT_TRANSLATION_PARAMS.items():
-                    current_value = data.get(p)
-                    data[p] = current_value if current_value is not None else default_value
-                if not TASK_DATA[task_id].get('manual', False):
-                    ONGOING_TASKS.append(task_id)
-                return web.json_response({'task_id': task_id, 'data': data})
-            else:
-                return web.json_response({})
-        else:
+        if len(QUEUE) <= 0 or len(ONGOING_TASKS) >= MAX_ONGOING_TASKS:
             return web.json_response({})
+        task_id = QUEUE.popleft()
+        if task_id not in TASK_DATA:
+            return web.json_response({})
+        data = TASK_DATA[task_id]
+        for p, default_value in DEFAULT_TRANSLATION_PARAMS.items():
+            current_value = data.get(p)
+            data[p] = current_value if current_value is not None else default_value
+        if not TASK_DATA[task_id].get('manual', False):
+            ONGOING_TASKS.append(task_id)
+        return web.json_response({'task_id': task_id, 'data': data})
     return web.json_response({})
 
 async def manual_trans_task(task_id, texts, translations):
@@ -351,9 +348,7 @@ async def get_task_state_async(request):
             res_dict['waiting'] = QUEUE.index(task_id) + 1
         except Exception:
             res_dict['waiting'] = 0
-        res = web.json_response(res_dict)
-
-        return res
+        return web.json_response(res_dict)
     return web.json_response({'state': 'error'})
 
 @routes.post("/task-update-internal")
@@ -487,8 +482,7 @@ def start_translator_client_proc(host: str, port: int, nonce: str, params: dict)
     if params.get('verbose', False):
         cmds.append('--verbose')
 
-    proc = subprocess.Popen(cmds, cwd=BASE_PATH)
-    return proc
+    return subprocess.Popen(cmds, cwd=BASE_PATH)
 
 async def start_async_app(host: str, port: int, nonce: str, translation_params: dict = None):
     global NONCE, DEFAULT_TRANSLATION_PARAMS, FORMAT
@@ -567,7 +561,11 @@ async def dispatch(host: str, port: int, nonce: str = None, translation_params: 
                 del TASK_DATA[tid]
 
             # Delete oldest folder if disk space is becoming sparse
-            if DISK_SPACE_LIMIT >= 0 and len(FINISHED_TASKS) > 0 and shutil.disk_usage('result/')[2] < DISK_SPACE_LIMIT:
+            if (
+                DISK_SPACE_LIMIT >= 0
+                and FINISHED_TASKS
+                and shutil.disk_usage('result/')[2] < DISK_SPACE_LIMIT
+            ):
                 tid = FINISHED_TASKS.pop(0)
                 try:
                     p = f'result/{tid}'

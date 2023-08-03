@@ -20,7 +20,7 @@ class CustomCTCLossFunction(torch.autograd.Function):
         reduction: str = "mean",
         zero_infinity: bool = False
         ):
-        assert reduction in ['none', 'mean']
+        assert reduction in {'none', 'mean'}
         if isinstance(input_lengths, list) :
             input_lengths = Tensor(input_lengths).long().to(log_probs.device)
         if isinstance(target_lengths, list) :

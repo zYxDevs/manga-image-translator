@@ -50,14 +50,10 @@ class FFDNetDenoiser:
         
     def get_denoised_image(self, imorig, sigma = None):
         
-        if sigma is not None:
-            cur_sigma = sigma / 255
-        else:
-            cur_sigma = self.sigma 
-    
+        cur_sigma = sigma / 255 if sigma is not None else self.sigma
         if len(imorig.shape) < 3 or imorig.shape[2] == 1:
             imorig = np.repeat(np.expand_dims(imorig, 2), 3, 2)
-            
+
         imorig = imorig[..., :3]
 
         if (max(imorig.shape[0], imorig.shape[1]) > 1200):
@@ -65,7 +61,7 @@ class FFDNetDenoiser:
             imorig = cv2.resize(imorig, (int(imorig.shape[1] / ratio), int(imorig.shape[0] / ratio)), interpolation = cv2.INTER_AREA)
 
         imorig = imorig.transpose(2, 0, 1)
- 
+
         if (imorig.max() > 1.2):
             imorig = normalize(imorig)
         imorig = np.expand_dims(imorig, 0)
@@ -87,11 +83,7 @@ class FFDNetDenoiser:
 
 
         # Sets data type according to CPU or GPU modes
-        if self.device == 'cuda':
-            dtype = torch.cuda.FloatTensor
-        else:
-            dtype = torch.FloatTensor
-
+        dtype = torch.cuda.FloatTensor if self.device == 'cuda' else torch.FloatTensor
         imnoisy = imorig#.clone()
 
 
@@ -113,5 +105,5 @@ class FFDNetDenoiser:
             # imorig = imorig[:, :, :, :-1]
             outim = outim[:, :, :, :-1]
             # imnoisy = imnoisy[:, :, :, :-1]
-        
+
         return variable_to_cv2_image(outim)

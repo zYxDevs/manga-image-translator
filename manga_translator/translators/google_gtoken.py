@@ -41,7 +41,7 @@ class TokenAcquirer:
     def __init__(self, client: httpx.AsyncClient, tkk='0', host='translate.google.com'):
         self.client = client
         self.tkk = tkk
-        self.host = host if 'http' in host else 'https://' + host
+        self.host = host if 'http' in host else f'https://{host}'
 
     async def _update(self):
         """update tkk
@@ -53,8 +53,7 @@ class TokenAcquirer:
 
         r = await self.client.get(self.host)
 
-        raw_tkk = self.RE_TKK.search(r.text)
-        if raw_tkk:
+        if raw_tkk := self.RE_TKK.search(r.text):
             self.tkk = raw_tkk.group(1)
             return
 
@@ -81,7 +80,7 @@ class TokenAcquirer:
                             keys[name] = node.value.n
                         # the value can sometimes be negative
                         elif isinstance(node.value, ast.UnaryOp) and \
-                                isinstance(node.value.op, ast.USub):  # pragma: nocover
+                                    isinstance(node.value.op, ast.USub):  # pragma: nocover
                             keys[name] = -node.value.operand.n
                 elif isinstance(node, ast.Return):
                     # parameters should be set after this point
@@ -105,7 +104,7 @@ class TokenAcquirer:
             clause = compile('{1}{0}{2}'.format(
                 operator, keys['a'], keys['b']), '', 'eval')
             value = eval(clause, dict(__builtin__={}))
-            result = '{}.{}'.format(n, value)
+            result = f'{n}.{value}'
 
             self.tkk = result
 
@@ -133,8 +132,8 @@ class TokenAcquirer:
         while c < size_b - 2:
             d = b[c + 2]
             d = ord(d[0]) - 87 if 'a' <= d else int(d)
-            d = rshift(a, d) if '+' == b[c + 1] else a << d
-            a = a + d & 4294967295 if '+' == b[c] else a ^ d
+            d = rshift(a, d) if b[c + 1] == '+' else a << d
+            a = a + d & 4294967295 if b[c] == '+' else a ^ d
 
             c += 3
         return a
@@ -166,25 +165,23 @@ class TokenAcquirer:
             # just append if l is less than 128(ascii: DEL)
             if l < 128:
                 e.append(l)
-            # append calculated value if l is less than 2048
             else:
                 if l < 2048:
                     e.append(l >> 6 | 192)
                 else:
                     # append calculated value if l matches special condition
                     if (l & 64512) == 55296 and g + 1 < size and \
-                            a[g + 1] & 64512 == 56320:
+                                a[g + 1] & 64512 == 56320:
                         g += 1
                         l = 65536 + ((l & 1023) << 10) + (a[g] & 1023)  # This bracket is important
-                        e.append(l >> 18 | 240)
-                        e.append(l >> 12 & 63 | 128)
+                        e.extend((l >> 18 | 240, l >> 12 & 63 | 128))
                     else:
                         e.append(l >> 12 | 224)
                     e.append(l >> 6 & 63 | 128)
                 e.append(l & 63 | 128)
             g += 1
         a = b
-        for i, value in enumerate(e):
+        for value in e:
             a += value
             a = self._xr(a, '+-a^+6')
         a = self._xr(a, '+-3^+b+-f')
@@ -193,9 +190,8 @@ class TokenAcquirer:
             a = (a & 2147483647) + 2147483648
         a %= 1000000  # int(1E6)
 
-        return '{}.{}'.format(a, a ^ b)
+        return f'{a}.{a ^ b}'
 
     async def do(self, text):
         await self._update()
-        tk = self.acquire(text)
-        return tk
+        return self.acquire(text)

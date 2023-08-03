@@ -20,12 +20,10 @@ from ..utils import (
 logger = get_logger('rendering')
 
 def parse_font_paths(path: str, default: List[str] = None) -> List[str]:
-    if path:
-        parsed = path.split(',')
-        parsed = list(filter(lambda p: os.path.isfile(p), parsed))
-    else:
-        parsed = default or []
-    return parsed
+    if not path:
+        return default or []
+    parsed = path.split(',')
+    return list(filter(lambda p: os.path.isfile(p), parsed))
 
 def fg_bg_compare(fg, bg):
     fg_avg = np.mean(fg)
@@ -82,7 +80,7 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List[TextBlock], 
             dst_points[..., 1] = dst_points[..., 1].clip(0, img.shape[0])
 
             dst_points = dst_points.reshape((-1, 4, 2))
-            region.font_size = int(target_font_size)
+            region.font_size = target_font_size
         else:
             dst_points = region.min_rect
 
@@ -178,7 +176,7 @@ def render(
     return img
 
 async def dispatch_eng_render(img_canvas: np.ndarray, original_img: np.ndarray, text_regions: List[TextBlock], font_path: str = '') -> np.ndarray:
-    if len(text_regions) == 0:
+    if not text_regions:
         return img_canvas
 
     if not font_path:

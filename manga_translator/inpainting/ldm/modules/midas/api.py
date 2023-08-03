@@ -28,12 +28,7 @@ def disabled_train(self, mode=True):
 def load_midas_transform(model_type):
     # https://github.com/isl-org/MiDaS/blob/master/run.py
     # load transform only
-    if model_type == "dpt_large":  # DPT-Large
-        net_w, net_h = 384, 384
-        resize_mode = "minimal"
-        normalization = NormalizeImage(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-
-    elif model_type == "dpt_hybrid":  # DPT-Hybrid
+    if model_type in ["dpt_large", "dpt_hybrid"]:  # DPT-Large
         net_w, net_h = 384, 384
         resize_mode = "minimal"
         normalization = NormalizeImage(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -51,7 +46,7 @@ def load_midas_transform(model_type):
     else:
         assert False, f"model_type '{model_type}' not implemented, use: --model_type large"
 
-    transform = Compose(
+    return Compose(
         [
             Resize(
                 net_w,
@@ -66,8 +61,6 @@ def load_midas_transform(model_type):
             PrepareForNet(),
         ]
     )
-
-    return transform
 
 
 def load_model(model_type):

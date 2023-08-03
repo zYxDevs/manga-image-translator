@@ -124,7 +124,11 @@ class ModelWrapper(ABC):
             if 'url' not in mapping:
                 raise InvalidModelMappingException(self._key, map_key, 'Missing url property')
             elif not re.search(r'^https?://', mapping['url']):
-                raise InvalidModelMappingException(self._key, map_key, 'Malformed url property: "%s"' % mapping['url'])
+                raise InvalidModelMappingException(
+                    self._key,
+                    map_key,
+                    f"""Malformed url property: "{mapping['url']}\"""",
+                )
             if 'file' not in mapping and 'archive' not in mapping:
                 mapping['file'] = '.'
             elif 'file' in mapping and 'archive' in mapping:
@@ -214,7 +218,7 @@ class ModelWrapper(ABC):
 
             if is_archive:
                 extracted_path = os.path.join(os.path.dirname(download_path), 'extracted')
-                print(f' -- Extracting files')
+                print(' -- Extracting files')
                 shutil.unpack_archive(download_path, extracted_path)
 
                 def get_real_archive_files():
@@ -261,10 +265,9 @@ class ModelWrapper(ABC):
         Scans filesystem for required files as defined in `_MODEL_MAPPING`.
         Returns `False` if files should be redownloaded.
         '''
-        for map_key in self._MODEL_MAPPING:
-            if not self._check_downloaded_map(map_key):
-                return False
-        return True
+        return all(
+            self._check_downloaded_map(map_key) for map_key in self._MODEL_MAPPING
+        )
 
     def _check_downloaded_map(self, map_key: str) -> str:
         mapping = self._MODEL_MAPPING[map_key]
@@ -288,18 +291,19 @@ class ModelWrapper(ABC):
         return True
 
     def _grant_execute_permissions(self, map_key: str):
+        if sys.platform != 'linux':
+            return
         mapping = self._MODEL_MAPPING[map_key]
 
-        if sys.platform == 'linux':
-            # Grant permission to executables
-            for file in mapping.get('executables', []):
-                p = self._get_file_path(file)
-                if os.path.basename(p) in ('', '.'):
-                    p = os.path.join(p, file)
-                if not os.path.isfile(p):
-                    raise InvalidModelMappingException(self._key, map_key, f'File "{file}" does not exist')
-                if not os.access(p, os.X_OK):
-                    os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        # Grant permission to executables
+        for file in mapping.get('executables', []):
+            p = self._get_file_path(file)
+            if os.path.basename(p) in ('', '.'):
+                p = os.path.join(p, file)
+            if not os.path.isfile(p):
+                raise InvalidModelMappingException(self._key, map_key, f'File "{file}" does not exist')
+            if not os.access(p, os.X_OK):
+                os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     async def reload(self, device: str, *args, **kwargs):
         await self.unload()

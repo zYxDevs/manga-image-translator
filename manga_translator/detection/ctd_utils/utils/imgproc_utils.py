@@ -16,15 +16,14 @@ def union_area(bboxa, bboxb):
     y1 = max(bboxa[1], bboxb[1])
     x2 = min(bboxa[2], bboxb[2])
     y2 = min(bboxa[3], bboxb[3])
-    if y2 < y1 or x2 < x1:
-        return -1
-    return (y2 - y1) * (x2 - x1)
+    return -1 if y2 < y1 or x2 < x1 else (y2 - y1) * (x2 - x1)
 
 def get_yololabel_strings(clslist, labellist):
-    content = ''
-    for cls, xywh in zip(clslist, labellist):
-        content += str(int(cls)) + ' ' + ' '.join([str(e) for e in xywh]) + '\n'
-    if len(content) != 0:
+    content = ''.join(
+        f'{int(cls)} ' + ' '.join([str(e) for e in xywh]) + '\n'
+        for cls, xywh in zip(clslist, labellist)
+    )
+    if content != "":
         content = content[:-1]
     return content
 
@@ -102,12 +101,11 @@ def letterbox(im, new_shape=(640, 640), color=(0, 0, 0), auto=False, scaleFill=F
 def resize_keepasp(im, new_shape=640, scaleup=True, interpolation=cv2.INTER_LINEAR, stride=None):
     shape = im.shape[:2]  # current shape [height, width]
 
-    if new_shape is not None:
-        if not isinstance(new_shape, tuple):
-            new_shape = (new_shape, new_shape)
-    else:
+    if new_shape is None:
         new_shape = shape
 
+    elif not isinstance(new_shape, tuple):
+        new_shape = (new_shape, new_shape)
     # Scale ratio (new / old)
     r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
     if not scaleup:  # only scale down, do not scale up (for better val mAP)
@@ -117,14 +115,12 @@ def resize_keepasp(im, new_shape=640, scaleup=True, interpolation=cv2.INTER_LINE
 
     if stride is not None:
         h, w = new_unpad
-        if new_shape[0] % stride != 0:
-            new_h = (stride - (new_shape[0] % stride)) + h
-        else:
-            new_h = h
-        if w % stride != 0:
-            new_w = (stride - (w % stride)) + w
-        else:
-            new_w = w
+        new_h = (
+            (stride - (new_shape[0] % stride)) + h
+            if new_shape[0] % stride != 0
+            else h
+        )
+        new_w = (stride - (w % stride)) + w if w % stride != 0 else w
         new_unpad = (new_h, new_w)
 
     if shape[::-1] != new_unpad:  # resize

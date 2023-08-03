@@ -27,10 +27,9 @@ class DBHead(nn.Module):
         threshold_maps = self.thresh(x)
         if self.training:
             binary_maps = self.step_function(shrink_maps.sigmoid(), threshold_maps)
-            y = torch.cat((shrink_maps, threshold_maps, binary_maps), dim=1)
+            return torch.cat((shrink_maps, threshold_maps, binary_maps), dim=1)
         else:
-            y = torch.cat((shrink_maps, threshold_maps), dim=1)
-        return y
+            return torch.cat((shrink_maps, threshold_maps), dim=1)
 
     def weights_init(self, m):
         classname = m.__class__.__name__
@@ -56,18 +55,17 @@ class DBHead(nn.Module):
         return self.thresh
 
     def _init_upsample(self, in_channels, out_channels, smooth=False, bias=False):
-        if smooth:
-            inter_out_channels = out_channels
-            if out_channels == 1:
-                inter_out_channels = in_channels
-            module_list = [
-                nn.Upsample(scale_factor=2, mode='nearest'),
-                nn.Conv2d(in_channels, inter_out_channels, 3, 1, 1, bias=bias)]
-            if out_channels == 1:
-                module_list.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=1, bias=True))
-            return nn.Sequential(module_list)
-        else:
+        if not smooth:
             return nn.ConvTranspose2d(in_channels, out_channels, 4, 2, 1)
+        inter_out_channels = out_channels
+        if out_channels == 1:
+            inter_out_channels = in_channels
+        module_list = [
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(in_channels, inter_out_channels, 3, 1, 1, bias=bias)]
+        if out_channels == 1:
+            module_list.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=1, bias=True))
+        return nn.Sequential(module_list)
 
     def step_function(self, x, y):
         return torch.reciprocal(1 + torch.exp(-self.k * (x - y)))

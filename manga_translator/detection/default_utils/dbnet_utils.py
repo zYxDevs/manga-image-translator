@@ -73,11 +73,10 @@ class SegDetectorRepresenter():
             if self.box_thresh > score:
                 continue
 
-            if points.shape[0] > 2:
-                box = self.unclip(points, unclip_ratio=self.unclip_ratio)
-                if len(box) > 1:
-                    continue
-            else:
+            if points.shape[0] <= 2:
+                continue
+            box = self.unclip(points, unclip_ratio=self.unclip_ratio)
+            if len(box) > 1:
                 continue
             box = box.reshape(-1, 2)
             _, sside = self.get_mini_boxes(box.reshape((-1, 1, 2)))
@@ -148,8 +147,7 @@ class SegDetectorRepresenter():
         distance = poly.area * unclip_ratio / poly.length
         offset = pyclipper.PyclipperOffset()
         offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
-        expanded = np.array(offset.Execute(distance))
-        return expanded
+        return np.array(offset.Execute(distance))
 
     def get_mini_boxes(self, contour):
         bounding_box = cv2.minAreaRect(contour)

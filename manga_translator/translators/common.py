@@ -62,9 +62,9 @@ class MissingAPIKeyException(Exception):
 
 class LanguageUnsupportedException(Exception):
     def __init__(self, language_code: str, translator: str = None, supported_languages: List[str] = None):
-        error = 'Language not supported for %s: "%s"' % (translator if translator else 'chosen translator', language_code)
+        error = f"""Language not supported for {translator if translator else 'chosen translator'}: "{language_code}\""""
         if supported_languages:
-            error += '. Supported languages: "%s"' % ','.join(supported_languages)
+            error += f""". Supported languages: "{','.join(supported_languages)}\""""
         super().__init__(error)
 
 class MTPEAdapter():
@@ -134,9 +134,13 @@ class CommonTranslator(InfererModule):
         Translates list of queries of one language into another.
         """
         if to_lang not in VALID_LANGUAGES:
-            raise ValueError('Invalid language code: "%s". Choose from the following: %s' % (to_lang, ', '.join(VALID_LANGUAGES)))
+            raise ValueError(
+                f"""Invalid language code: "{to_lang}". Choose from the following: {', '.join(VALID_LANGUAGES)}"""
+            )
         if from_lang not in VALID_LANGUAGES and from_lang != 'auto':
-            raise ValueError('Invalid language code: "%s". Choose from the following: auto, %s' % (from_lang, ', '.join(VALID_LANGUAGES)))
+            raise ValueError(
+                f"""Invalid language code: "{from_lang}". Choose from the following: auto, {', '.join(VALID_LANGUAGES)}"""
+            )
         self.logger.info(f'Translating into {VALID_LANGUAGES[to_lang]}')
 
         if from_lang == to_lang:
@@ -217,14 +221,16 @@ class CommonTranslator(InfererModule):
     def _is_translation_invalid(self, query: str, trans: str) -> bool:
         if not trans and query:
             return True
-        if not query or not trans:
+        if not query:
             return False
 
         query_symbols_count = len(set(query))
         trans_symbols_count = len(set(trans))
-        if query_symbols_count > 6 and trans_symbols_count < 6 and trans_symbols_count < 0.25 * len(trans):
-            return True
-        return False
+        return (
+            query_symbols_count > 6
+            and trans_symbols_count < 6
+            and trans_symbols_count < 0.25 * len(trans)
+        )
 
     def _modify_invalid_translation_query(self, query: str, trans: str) -> str:
         """
@@ -257,10 +263,10 @@ class CommonTranslator(InfererModule):
         if len(trans) < len(query) and len(seq) < 0.5 * len(trans):
             # Shrink sequence to length of original query
             trans = seq * max(len(query) // len(seq), 1)
-            # Transfer capitalization of query to translation
-            nTrans = ''
-            for i in range(min(len(trans), len(query))):
-                nTrans += trans[i].upper() if query[i].isupper() else trans[i]
+            nTrans = ''.join(
+                trans[i].upper() if query[i].isupper() else trans[i]
+                for i in range(min(len(trans), len(query)))
+            )
             trans = nTrans
 
         # words = text.split()

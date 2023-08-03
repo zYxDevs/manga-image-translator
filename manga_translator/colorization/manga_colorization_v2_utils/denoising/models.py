@@ -40,30 +40,32 @@ class IntermediateDnCNN(nn.Module):
         else:
             raise Exception('Invalid number of input features')
 
-        layers = []
-        layers.append(nn.Conv2d(in_channels=self.input_features,\
-                                out_channels=self.middle_features,\
-                                kernel_size=self.kernel_size,\
-                                padding=self.padding,\
-                                bias=False))
+        layers = [
+            nn.Conv2d(
+                in_channels=self.input_features,
+                out_channels=self.middle_features,
+                kernel_size=self.kernel_size,
+                padding=self.padding,
+                bias=False,
+            )
+        ]
         layers.append(nn.ReLU(inplace=True))
         for _ in range(self.num_conv_layers-2):
             layers.append(nn.Conv2d(in_channels=self.middle_features,\
-                                    out_channels=self.middle_features,\
-                                    kernel_size=self.kernel_size,\
-                                    padding=self.padding,\
-                                    bias=False))
+                                        out_channels=self.middle_features,\
+                                        kernel_size=self.kernel_size,\
+                                        padding=self.padding,\
+                                        bias=False))
             layers.append(nn.BatchNorm2d(self.middle_features))
             layers.append(nn.ReLU(inplace=True))
         layers.append(nn.Conv2d(in_channels=self.middle_features,\
-                                out_channels=self.output_features,\
-                                kernel_size=self.kernel_size,\
-                                padding=self.padding,\
-                                bias=False))
+                                    out_channels=self.output_features,\
+                                    kernel_size=self.kernel_size,\
+                                    padding=self.padding,\
+                                    bias=False))
         self.itermediate_dncnn = nn.Sequential(*layers)
     def forward(self, x):
-        out = self.itermediate_dncnn(x)
-        return out
+        return self.itermediate_dncnn(x)
 
 class FFDNet(nn.Module):
     r"""Implements the FFDNet architecture
@@ -96,5 +98,4 @@ class FFDNet(nn.Module):
         concat_noise_x = functions.concatenate_input_noise_map(x.data, noise_sigma.data)
         concat_noise_x = Variable(concat_noise_x)
         h_dncnn = self.intermediate_dncnn(concat_noise_x)
-        pred_noise = self.upsamplefeatures(h_dncnn)
-        return pred_noise
+        return self.upsamplefeatures(h_dncnn)

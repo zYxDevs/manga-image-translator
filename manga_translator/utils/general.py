@@ -43,18 +43,16 @@ class Context(dict):
     
     def __repr__(self):
         type_name = type(self).__name__
-        arg_strings = []
         star_args = {}
-        for arg in self._get_args():
-            arg_strings.append(repr(arg))
+        arg_strings = [repr(arg) for arg in self._get_args()]
         for name, value in self._get_kwargs():
             if name.isidentifier():
                 arg_strings.append('%s=%r' % (name, value))
             else:
                 star_args[name] = value
         if star_args:
-            arg_strings.append('**%s' % repr(star_args))
-        return '%s(%s)' % (type_name, ', '.join(arg_strings))
+            arg_strings.append(f'**{repr(star_args)}')
+        return f"{type_name}({', '.join(arg_strings)})"
 
     def _get_kwargs(self):
         return list(self.items())
@@ -85,20 +83,16 @@ def is_whitespace(ch):
     if ch == " " or ch == "\t" or ch == "\n" or ch == "\r" or ord(ch) == 0:
         return True
     cat = unicodedata.category(ch)
-    if cat == "Zs":
-        return True
-    return False
+    return cat == "Zs"
 
 def is_control(ch):
     """Checks whether `chars` is a control character."""
     # These are technically control characters but we count them as whitespace
     # characters.
-    if ch == "\t" or ch == "\n" or ch == "\r":
+    if ch in ["\t", "\n", "\r"]:
         return False
     cat = unicodedata.category(ch)
-    if cat in ("Cc", "Cf"):
-        return True
-    return False
+    return cat in ("Cc", "Cf")
 
 def is_punctuation(ch):
     """Checks whether `chars` is a punctuation character."""
@@ -111,13 +105,17 @@ def is_punctuation(ch):
         (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
         return True
     cat = unicodedata.category(ch)
-    if cat.startswith("P"):
-        return True
-    return False
+    return bool(cat.startswith("P"))
 
 def count_valuable_text(text) -> int:
     # return sum([1 for ch in text if re.search(r'\w', ch)])
-    return sum([1 for ch in text if not is_punctuation(ch) and not is_control(ch) and not is_whitespace(ch)])
+    return sum(
+        1
+        for ch in text
+        if not is_punctuation(ch)
+        and not is_control(ch)
+        and not is_whitespace(ch)
+    )
 
 def replace_prefix(s: str, old: str, new: str):
     if s.startswith(old):
@@ -135,29 +133,25 @@ def get_digest(file_path: str) -> str:
 
     with open(file_path, 'rb') as file:
         while True:
-            # Reading is buffered, so we can read smaller chunks.
-            chunk = file.read(BUF_SIZE)
-            if not chunk:
+            if chunk := file.read(BUF_SIZE):
+                h.update(chunk)
+            else:
                 break
-            h.update(chunk)
     return h.hexdigest()
 
 def get_filename_from_url(url: str, default: str = '') -> str:
-    m = re.search(r'/([^/?]+)[^/]*$', url)
-    if m:
-        return m.group(1)
-    return default
+    return m[1] if (m := re.search(r'/([^/?]+)[^/]*$', url)) else default
 
 def is_url(s: str):
     return re.search(r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+$', s) and True
 
 def download_url_with_progressbar(url: str, path: str):
     if os.path.basename(path) in ('.', '') or os.path.isdir(path):
-        new_filename = get_filename_from_url(url)
-        if not new_filename:
-            raise Exception('Could not determine filename')
-        path = os.path.join(path, new_filename)
+        if new_filename := get_filename_from_url(url):
+            path = os.path.join(path, new_filename)
 
+        else:
+            raise Exception('Could not determine filename')
     headers = {}
     downloaded_size = 0
     if os.path.isfile(path):
@@ -170,34 +164,30 @@ def download_url_with_progressbar(url: str, path: str):
         print('Error: Webserver does not support partial downloads. Restarting from the beginning.')
         r = requests.get(url, stream=True, allow_redirects=True)
         downloaded_size = 0
+    if not r.ok:
+        raise Exception(f'Couldn\'t resolve url: "{url}" (Error: {r.status_code})')
     total = int(r.headers.get('content-length', 0))
     chunk_size = 1024
 
-    if r.ok:
-        with tqdm.tqdm(
-            desc=os.path.basename(path),
-            initial=downloaded_size,
-            total=total+downloaded_size,
-            unit='iB',
-            unit_scale=True,
-            unit_divisor=chunk_size,
-        ) as bar:
-            with open(path, 'ab' if downloaded_size else 'wb') as f:
-                is_tty = sys.stdout.isatty()
-                downloaded_chunks = 0
-                for data in r.iter_content(chunk_size=chunk_size):
-                    size = f.write(data)
-                    bar.update(size)
+    with tqdm.tqdm(
+                desc=os.path.basename(path),
+                initial=downloaded_size,
+                total=total+downloaded_size,
+                unit='iB',
+                unit_scale=True,
+                unit_divisor=chunk_size,
+            ) as bar:
+        with open(path, 'ab' if downloaded_size else 'wb') as f:
+            is_tty = sys.stdout.isatty()
+            for downloaded_chunks, data in enumerate(r.iter_content(chunk_size=chunk_size), start=1):
+                size = f.write(data)
+                bar.update(size)
 
-                    # Fallback for non TTYs so output still shown
-                    downloaded_chunks += 1
-                    if not is_tty and downloaded_chunks % 1000 == 0:
-                        print(bar)
-    else:
-        raise Exception(f'Couldn\'t resolve url: "{url}" (Error: {r.status_code})')
+                if not is_tty and downloaded_chunks % 1000 == 0:
+                    print(bar)
 
 def prompt_yes_no(query: str, default: bool = None) -> bool:
-    s = '%s (%s/%s): ' % (query, 'Y' if default == True else 'y', 'N' if default == False else 'n')
+    s = f"{query} ({'Y' if default else 'y'}/{'N' if not default else 'n'}): "
     while True:
         inp = input(s).lower()
         if inp in ('yes', 'y'):
@@ -221,10 +211,7 @@ class AvgMeter():
         if val is not None:
             self.sum += val
             self.count += 1
-        if self.count > 0:
-            return self.sum / self.count
-        else:
-            return 0
+        return self.sum / self.count if self.count > 0 else 0
 
 def load_image(img: Image.Image):
     if img.mode == 'RGBA':
@@ -245,11 +232,10 @@ def load_image(img: Image.Image):
         return np.array(img.convert('RGB')), None
 
 def dump_image(img: np.ndarray, alpha_ch: Image.Image = None):
-    if alpha_ch is not None:
-        if img.shape[2] != 4 :
-            img = np.concatenate([img.astype(np.uint8), np.array(alpha_ch).astype(np.uint8)[..., None]], axis = 2)
-    else:
+    if alpha_ch is None:
         img = img.astype(np.uint8)
+    elif img.shape[2] != 4:
+        img = np.concatenate([img.astype(np.uint8), np.array(alpha_ch).astype(np.uint8)[..., None]], axis = 2)
     return Image.fromarray(img)
 
 def resize_keep_aspect(img, size):
@@ -283,11 +269,7 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
         r = width / float(w)
         dim = (width, int(h * r))
 
-    # resize the image
-    resized = cv2.resize(image, dim, interpolation = inter)
-
-    # return the resized image
-    return resized
+    return cv2.resize(image, dim, interpolation = inter)
 
 class BBox(object):
     def __init__(self, x: int, y: int, w: int, h: int, text: str, prob: float, fg_r: int = 0, fg_g: int = 0, fg_b: int = 0, bg_r: int = 0, bg_g: int = 0, bg_b: int = 0):
@@ -411,8 +393,7 @@ class Quadrilateral(object):
             w = max(int(round(textheight / ratio)), 2)
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            region = cv2.warpPerspective(img, M, (w, h))
-            return region
+            return cv2.warpPerspective(img, M, (w, h))
         elif direction == 'v':
             w = max(int(textheight), 2)
             h = max(int(round(textheight * ratio)), 2)
@@ -431,9 +412,10 @@ class Quadrilateral(object):
         e2 = np.array([1, 0])
         unit_vector_1 = v1 / np.linalg.norm(v1)
         unit_vector_2 = v2 / np.linalg.norm(v2)
-        if abs(np.dot(unit_vector_1, e1)) < 1e-2 or abs(np.dot(unit_vector_1, e2)) < 1e-2:
-            return True
-        return False
+        return (
+            abs(np.dot(unit_vector_1, e1)) < 1e-2
+            or abs(np.dot(unit_vector_1, e2)) < 1e-2
+        )
 
     @functools.cached_property
     def is_approximate_axis_aligned(self) -> bool:
@@ -444,19 +426,19 @@ class Quadrilateral(object):
         e2 = np.array([1, 0])
         unit_vector_1 = v1 / np.linalg.norm(v1)
         unit_vector_2 = v2 / np.linalg.norm(v2)
-        if abs(np.dot(unit_vector_1, e1)) < 0.05 or abs(np.dot(unit_vector_1, e2)) < 0.05 or abs(np.dot(unit_vector_2, e1)) < 0.05 or abs(np.dot(unit_vector_2, e2)) < 0.05:
-            return True
-        return False
+        return (
+            abs(np.dot(unit_vector_1, e1)) < 0.05
+            or abs(np.dot(unit_vector_1, e2)) < 0.05
+            or abs(np.dot(unit_vector_2, e1)) < 0.05
+            or abs(np.dot(unit_vector_2, e2)) < 0.05
+        )
 
     @functools.cached_property
     def direction(self) -> str:
         [l1a, l1b, l2a, l2b] = [a.astype(np.float32) for a in self.structure]
         v_vec = l1b - l1a
         h_vec = l2b - l2a
-        if np.linalg.norm(v_vec) > np.linalg.norm(h_vec):
-            return 'v'
-        else:
-            return 'h'
+        return 'v' if np.linalg.norm(v_vec) > np.linalg.norm(h_vec) else 'h'
 
     @functools.cached_property
     def cosangle(self) -> float:
@@ -504,10 +486,7 @@ class Quadrilateral(object):
         # x2, y2, w2, h2 = b2.x, b2.y, b2.w, b2.h
         # return rect_distance(x1, y1, x1 + w1, y1 + h1, x2, y2, x2 + w2, y2 + h2)
         pattern = ''
-        if self.assigned_direction == 'h':
-            pattern = 'h_left'
-        else:
-            pattern = 'v_top'
+        pattern = 'h_left' if self.assigned_direction == 'h' else 'v_top'
         fs = max(self.font_size, other.font_size)
         if self.assigned_direction == 'h':
             poly1 = MultiPoint([tuple(self.pts[0]), tuple(self.pts[3]), tuple(other.pts[0]), tuple(other.pts[3])]).convex_hull
@@ -592,10 +571,7 @@ def distance_point_lineseg(p: np.ndarray, p1: np.ndarray, p2: np.ndarray):
 
     dot = A * C + B * D
     len_sq = C * C + D * D
-    param = -1
-    if len_sq != 0:
-        param = dot / len_sq
-
+    param = dot / len_sq if len_sq != 0 else -1
     if param < 0:
         xx = x1
         yy = y1
@@ -640,19 +616,14 @@ def quadrilateral_can_merge_region(a: Quadrilateral, b: Quadrilateral, ratio = 1
                 return abs(x1 - x2) < char_size * char_gap_tolerance2 or abs(x1 + w1 - (x2 + w2)) < char_size * char_gap_tolerance2
             elif h1 > w1 * ratio or h2 > w2 * ratio : # v
                 return abs(y1 - y2) < char_size * char_gap_tolerance2 or abs(y1 + h1 - (y2 + h2)) < char_size * char_gap_tolerance2
+        return False
+    if abs(a.angle - b.angle) < 15 * np.pi / 180:
+        fs_a = a.font_size
+        fs_b = b.font_size
+        fs = min(fs_a, fs_b)
+        if a.poly_distance(b) > fs * char_gap_tolerance2:
             return False
-        else:
-            return False
-    if True:#not a_aa and not b_aa:
-        if abs(a.angle - b.angle) < 15 * np.pi / 180:
-            fs_a = a.font_size
-            fs_b = b.font_size
-            fs = min(fs_a, fs_b)
-            if a.poly_distance(b) > fs * char_gap_tolerance2:
-                return False
-            if abs(fs_a - fs_b) / fs > 0.25:
-                return False
-            return True
+        return abs(fs_a - fs_b) / fs <= 0.25
     return False
 
 def quadrilateral_can_merge_region_coarse(a: Quadrilateral, b: Quadrilateral, discard_connection_gap = 2, font_size_ratio_tol = 0.7) -> bool:
@@ -667,9 +638,7 @@ def quadrilateral_can_merge_region_coarse(a: Quadrilateral, b: Quadrilateral, di
         return False
     fs = max(fs_a, fs_b)
     dist = a.poly_distance(b)
-    if dist > discard_connection_gap * fs:
-        return False
-    return True
+    return dist <= discard_connection_gap * fs
 
 def findNextPowerOf2(n):
     i = 0
@@ -755,9 +724,7 @@ def closest_point_to_origin(a: Point, b: Point) -> Point:
     return a.neg() if da < db else b.neg()
 
 def dcmp(a) -> bool:
-    if abs(a) < 1e-8:
-        return False
-    return True
+    return abs(a) >= 1e-8
 
 def gjk_distance(s1: List[Point], s2: List[Point]) -> float:
     d = center_of_points(s2) - center_of_points(s1)

@@ -190,9 +190,9 @@ class TextBlock(object):
     
     def normalizd_width_list(self) -> List[float]:
         polygons = self.unrotated_polygons
-        width_list = []
-        for polygon in polygons:
-            width_list.append((polygon[[2, 4]] - polygon[[0, 6]]).sum())
+        width_list = [
+            (polygon[[2, 4]] - polygon[[0, 6]]).sum() for polygon in polygons
+        ]
         width_list = np.array(width_list)
         width_list = width_list / np.sum(width_list)
         return width_list.tolist()
@@ -204,8 +204,7 @@ class TextBlock(object):
         return self.lines[idx]
 
     def to_dict(self):
-        blk_dict = copy.deepcopy(vars(self))
-        return blk_dict
+        return copy.deepcopy(vars(self))
 
     def get_transformed_region(self, img: np.ndarray, line_idx: int, textheight: int, maxwidth: int = None) -> np.ndarray:
         src_pts = np.array(self.lines[line_idx], dtype=np.float64)
@@ -216,13 +215,13 @@ class TextBlock(object):
         ratio = np.linalg.norm(vec_v) / np.linalg.norm(vec_h)
 
         if ratio < 1:
-            h = int(textheight)
+            h = textheight
             w = int(round(textheight / ratio))
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
             region = cv2.warpPerspective(img, M, (w, h))
         else:
-            w = int(textheight)
+            w = textheight
             h = int(round(textheight * ratio))
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
@@ -235,9 +234,7 @@ class TextBlock(object):
         return region
 
     def get_text(self):
-        if isinstance(self.text, str):
-            return self.text
-        return ' '.join(self.text).strip()
+        return self.text if isinstance(self.text, str) else ' '.join(self.text).strip()
 
     def set_font_colors(self, fg_colors, bg_colors, accumulate=True):
         self.accumulate_color = accumulate
@@ -253,18 +250,14 @@ class TextBlock(object):
         num_lines = len(self.lines)
         frgb = np.array(self.fg_colors)
         brgb = np.array(self.bg_colors)
-        if self.accumulate_color:
-            if num_lines > 0:
-                frgb = (frgb / num_lines).astype(np.int32)
-                brgb = (brgb / num_lines).astype(np.int32)
-                if bgr:
-                    return frgb[::-1], brgb[::-1]
-                else:
-                    return frgb, brgb
-            else:
-                return [0, 0, 0], [0, 0, 0]
-        else:
+        if not self.accumulate_color:
             return frgb, brgb
+        if num_lines > 0:
+            frgb = (frgb / num_lines).astype(np.int32)
+            brgb = (brgb / num_lines).astype(np.int32)
+            return (frgb[::-1], brgb[::-1]) if bgr else (frgb, brgb)
+        else:
+            return [0, 0, 0], [0, 0, 0]
 
     @property
     def direction(self):
@@ -274,10 +267,7 @@ class TextBlock(object):
             if d in ('h', 'v'):
                 return d
 
-            if self.aspect_ratio < 1:
-                return 'v'
-            else:
-                return 'h'
+            return 'v' if self.aspect_ratio < 1 else 'h'
         return self._direction
 
     @property
@@ -328,9 +318,7 @@ class TextBlock(object):
     @property
     def stroke_width(self):
         diff = color_difference(*self.get_font_colors())
-        if diff > 15:
-            return self.default_stroke_width
-        return 0
+        return self.default_stroke_width if diff > 15 else 0
 
 
 def rotate_polygons(center, polygons, rotation, new_center=None, to_int=True):
@@ -349,9 +337,7 @@ def rotate_polygons(center, polygons, rotation, new_center=None, to_int=True):
     rotated[:, ::2] = polygons[:, 1::2] * s + polygons[:, ::2] * c
     rotated[:, 1::2] += new_center[1]
     rotated[:, ::2] += new_center[0]
-    if to_int:
-        return rotated.astype(np.int64)
-    return rotated
+    return rotated.astype(np.int64) if to_int else rotated
 
 
 def sort_regions(regions: List[TextBlock], right_to_left=True) -> List[TextBlock]:
@@ -636,6 +622,22 @@ def visualize_textblocks(canvas, blk_list: List[TextBlock]):
         cv2.putText(canvas, str(i), (bx1, by1 + lw), 0, lw / 3, (255,127,127), max(lw-1, 1), cv2.LINE_AA)
         center = [int((bx1 + bx2)/2), int((by1 + by2)/2)]
         cv2.putText(canvas, 'a: %.2f' % blk.angle, [bx1, center[1]], cv2.FONT_HERSHEY_SIMPLEX, 1, (127,127,255), 2)
-        cv2.putText(canvas, 'x: %s' % bx1, [bx1, center[1] + 30], cv2.FONT_HERSHEY_SIMPLEX, 1, (127,127,255), 2)
-        cv2.putText(canvas, 'y: %s' % by1, [bx1, center[1] + 60], cv2.FONT_HERSHEY_SIMPLEX, 1, (127,127,255), 2)
+        cv2.putText(
+            canvas,
+            f'x: {bx1}',
+            [bx1, center[1] + 30],
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (127, 127, 255),
+            2,
+        )
+        cv2.putText(
+            canvas,
+            f'y: {by1}',
+            [bx1, center[1] + 60],
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (127, 127, 255),
+            2,
+        )
     return canvas

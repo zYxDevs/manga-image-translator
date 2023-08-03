@@ -80,14 +80,12 @@ class DPT(BaseModel):
         path_2 = self.scratch.refinenet2(path_3, layer_2_rn)
         path_1 = self.scratch.refinenet1(path_2, layer_1_rn)
 
-        out = self.scratch.output_conv(path_1)
-
-        return out
+        return self.scratch.output_conv(path_1)
 
 
 class DPTDepthModel(DPT):
     def __init__(self, path=None, non_negative=True, **kwargs):
-        features = kwargs["features"] if "features" in kwargs else 256
+        features = kwargs.get("features", 256)
 
         head = nn.Sequential(
             nn.Conv2d(features, features // 2, kernel_size=3, stride=1, padding=1),

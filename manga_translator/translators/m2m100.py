@@ -76,8 +76,9 @@ class M2M100Translator(OfflineTranslator):
             replace_unknowns=True,
             repetition_penalty=3,
         )
-        translated = self.detokenize(list(map(lambda t: t[0]['tokens'], translated_tokenized)), to_lang)
-        return translated
+        return self.detokenize(
+            list(map(lambda t: t[0]['tokens'], translated_tokenized)), to_lang
+        )
 
     def tokenize(self, queries, lang):
         sp = self.sentence_piece_processor

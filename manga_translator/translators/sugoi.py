@@ -58,11 +58,7 @@ class JparacrawlTranslator(OfflineTranslator):
 
     async def _load(self, from_lang: str, to_lang: str, device: str):
         if from_lang == 'auto':
-            if to_lang == 'en':
-                from_lang = 'ja'
-            else:
-                from_lang = 'en'
-
+            from_lang = 'ja' if to_lang == 'en' else 'en'
         self.load_params = {
             'from_lang': from_lang,
             'to_lang': to_lang,
@@ -86,10 +82,7 @@ class JparacrawlTranslator(OfflineTranslator):
 
     async def infer(self, from_lang: str, to_lang: str, queries: List[str]) -> List[str]:
         if from_lang == 'auto':
-            if to_lang == 'en':
-                from_lang = 'ja'
-            else:
-                from_lang = 'en'
+            from_lang = 'ja' if to_lang == 'en' else 'en'
         if self.is_loaded() and to_lang != self.load_params['to_lang']:
             await self.reload(self.load_params['device'], from_lang, to_lang)
 
@@ -106,8 +99,9 @@ class JparacrawlTranslator(OfflineTranslator):
             replace_unknowns=True,
             repetition_penalty=3,
         )
-        translated = self.detokenize(list(map(lambda t: t[0]['tokens'], translated_tokenized)), to_lang)
-        return translated
+        return self.detokenize(
+            list(map(lambda t: t[0]['tokens'], translated_tokenized)), to_lang
+        )
 
     def tokenize(self, queries, lang):
         sp = self.sentence_piece_processors[lang]
@@ -118,8 +112,7 @@ class JparacrawlTranslator(OfflineTranslator):
 
     def detokenize(self, queries, lang):
         sp = self.sentence_piece_processors[lang]
-        translation = sp.decode(queries)
-        return translation
+        return sp.decode(queries)
 
 class JparacrawlBigTranslator(JparacrawlTranslator):
     _CT2_MODEL_FOLDERS = {
@@ -177,11 +170,10 @@ class SugoiTranslator(JparacrawlBigTranslator):
             for q in queries:
                 # Split sentences into their own queries to prevent abbreviations
                 sentences = re.split(r'(\w[.‥…!?。・]+)', q)
-                chunk_queries = []
-                # Two sentences per query
-                for chunk in chunks(sentences, 4):
-                    s = ''.join(chunk)
-                    chunk_queries.append(re.sub(r'[.。]', '@', s))
+                chunk_queries = [
+                    re.sub(r'[.。]', '@', ''.join(chunk))
+                    for chunk in chunks(sentences, 4)
+                ]
                 self.query_split_sizes.append(len(chunk_queries))
                 new_queries.extend(chunk_queries)
             queries = new_queries

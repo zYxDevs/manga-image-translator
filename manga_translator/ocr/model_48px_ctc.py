@@ -63,7 +63,7 @@ class Model48pxCTCOCR(OfflineOCR):
 
         perm = range(len(region_imgs))
         is_quadrilaterals = False
-        if len(quadrilaterals) > 0:
+        if quadrilaterals:
             if isinstance(quadrilaterals[0][0], Quadrilateral):
                 is_quadrilaterals = True
                 # Sort regions based on width
@@ -78,8 +78,11 @@ class Model48pxCTCOCR(OfflineOCR):
             for i, idx in enumerate(indices):
                 W = region_imgs[idx].shape[1]
                 tmp = region_imgs[idx]
-                # Determine whether to skip the text block, and return True to skip.
-                if  ignore_bubble >=1 and ignore_bubble <=50 and is_ignore(region_imgs[idx], ignore_bubble):
+                if (
+                    ignore_bubble >= 1
+                    and ignore_bubble <= 50
+                    and is_ignore(tmp, ignore_bubble)
+                ):
                     ix+=1
                     continue
                 region[i, :, : W, :]=tmp
@@ -148,9 +151,7 @@ class Model48pxCTCOCR(OfflineOCR):
 
                 out_regions.append(cur_region)
 
-        if is_quadrilaterals:
-            return out_regions
-        return textlines
+        return out_regions if is_quadrilaterals else textlines
 
 
 class PositionalEncoding(nn.Module):
@@ -317,12 +318,9 @@ class ResNet(nn.Module):
                           kernel_size=1, stride=stride, bias=False),
             )
 
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers = [block(self.inplanes, planes, stride, downsample)]
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
+        layers.extend(block(self.inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -447,9 +445,9 @@ class OCR(nn.Module):
         return self.decode_ctc_top1(pred_char_logits, pred_color_values, blank, verbose = verbose)
 
     def decode_ctc_top1(self, pred_char_logits, pred_color_values, blank, verbose = False) -> List[List[Tuple[str, float, int, int, int, int, int, int]]]:
-        pred_chars: List[List[Tuple[str, float, int, int, int, int, int, int]]] = []
-        for _ in range(pred_char_logits.size(0)):
-            pred_chars.append([])
+        pred_chars: List[List[Tuple[str, float, int, int, int, int, int, int]]] = [
+            [] for _ in range(pred_char_logits.size(0))
+        ]
         logprobs = pred_char_logits.log_softmax(2)
         _, preds_index = logprobs.max(2)
         preds_index = preds_index.cpu()
@@ -460,7 +458,7 @@ class OCR(nn.Module):
             last_ch = blank
             for t in range(pred_char_logits.size(1)):
                 pred_ch = preds_index[b, t]
-                if pred_ch != last_ch and pred_ch != blank:
+                if pred_ch not in [last_ch, blank]:
                     lp = logprobs[b, t, pred_ch].item()
                     # if verbose:
                     #     if lp < math.log(0.9):
@@ -498,7 +496,7 @@ class OCR(nn.Module):
             i = 0
             for t in range(input_lengths[b]):
                 pred_ch = preds_index[b, t]
-                if pred_ch != last_ch and pred_ch != blank:
+                if pred_ch not in [last_ch, blank]:
                     total_char += 1
                     if gt_char_index[b, i] == pred_ch:
                         correct_char += 1

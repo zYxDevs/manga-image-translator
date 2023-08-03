@@ -11,8 +11,6 @@ class Formatter(logging.Formatter):
             self._style._fmt = f'{colorama.Fore.RED}%(levelname)s:{colorama.Fore.RESET} [%(name)s] %(message)s'
         elif record.levelno >= logging.WARN:
             self._style._fmt = f'{colorama.Fore.YELLOW}%(levelname)s:{colorama.Fore.RESET} [%(name)s] %(message)s'
-        elif record.levelno == logging.DEBUG:
-            self._style._fmt = '[%(name)s] %(message)s'
         else:
             self._style._fmt = '[%(name)s] %(message)s'
         return super().formatMessage(record)
@@ -23,7 +21,7 @@ class Filter(logging.Filter):
         if not record.name.startswith(ROOT_TAG):
             return False
         # Shorten the name
-        record.name = replace_prefix(record.name, ROOT_TAG + '.', '')
+        record.name = replace_prefix(record.name, f'{ROOT_TAG}.', '')
         return super().filter(record)
 
 root = logging.getLogger(ROOT_TAG)

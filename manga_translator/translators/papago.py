@@ -28,24 +28,23 @@ class PapagoTranslator(CommonTranslator):
     _API_URL = 'https://papago.naver.com/apis/n2mt/translate'
 
     async def _translate(self, from_lang, to_lang, queries):
-        data = {}
-        data['honorific'] = "false"
-        data['source'] = from_lang
-        data['target'] = to_lang
-        data['text'] = '\n'.join(queries)
+        data = {
+            'honorific': "false",
+            'source': from_lang,
+            'target': to_lang,
+            'text': '\n'.join(queries),
+        }
         result = await self._do_request(data, self._version_key)
         if "translatedText" not in result:
             raise InvalidServerResponse(f'Papago returned invalid response: {result}\nAre the API keys set correctly?')
-        result_list = [str.strip() for str in result["translatedText"].split("\n")]
-        return result_list
+        return [str.strip() for str in result["translatedText"].split("\n")]
 
     @cached_property
     def _version_key(self):
         script = requests.get('https://papago.naver.com')
-        mainJs = re.search(r'\/(main.*\.js)', script.text).group(1)
-        papagoVerData = requests.get('https://papago.naver.com/' + mainJs)
-        papagoVer = re.search(r'"PPG .*,"(v[^"]*)', papagoVerData.text).group(1)
-        return papagoVer
+        mainJs = re.search(r'\/(main.*\.js)', script.text)[1]
+        papagoVerData = requests.get(f'https://papago.naver.com/{mainJs}')
+        return re.search(r'"PPG .*,"(v[^"]*)', papagoVerData.text)[1]
 
     async def _do_request(self, data, version_key):
         guid = uuid.uuid4()

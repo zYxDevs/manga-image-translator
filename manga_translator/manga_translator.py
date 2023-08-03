@@ -139,9 +139,9 @@ class MangaTranslator():
 
         elif os.path.isdir(path):
             # Determine destination folder path
-            if path[-1] == '\\' or path[-1] == '/':
+            if path[-1] in ['\\', '/']:
                 path = path[:-1]
-            _dest = dest or path + '-translated'
+            _dest = dest or f'{path}-translated'
             if os.path.exists(_dest) and not os.path.isdir(_dest):
                 raise FileExistsError(_dest)
 
@@ -196,7 +196,7 @@ class MangaTranslator():
             if translation_dict.prep_manual:
                 # Save original image next to translated
                 p, ext = os.path.splitext(dest)
-                img_filename = p + '-orig' + ext
+                img_filename = f'{p}-orig{ext}'
                 img_path = os.path.join(os.path.dirname(dest), img_filename)
                 img.save(img_path, quality=translation_dict.save_quality)
             if translation_dict.text_regions:
@@ -263,7 +263,11 @@ class MangaTranslator():
                     await self._report_progress('error-lang', True)
                 else:
                     await self._report_progress('error', True)
-                if not self.ignore_errors and not (ctx.retries == -1 or attempts < ctx.retries):
+                if (
+                    not self.ignore_errors
+                    and ctx.retries != -1
+                    and attempts >= ctx.retries
+                ):
                     raise
                 else:
                     logger.error(f'{e.__class__.__name__}: {e}',
@@ -420,19 +424,14 @@ class MangaTranslator():
         text_regions = await dispatch_textline_merge(ctx.textlines, *ctx.img_rgb.shape[:2], verbose=self.verbose)
         text_regions = [region for region in text_regions if len(''.join(region.text)) >= ctx.min_text_length]
 
-        # Sort ctd (comic text detector) regions left to right. Otherwise right to left.
-        # Sorting will improve text translation quality.
-        text_regions = sort_regions(text_regions, right_to_left=True if ctx.detector != 'ctd' else False)
-        return text_regions
+        return sort_regions(text_regions, right_to_left=ctx.detector != 'ctd')
 
     async def _run_text_translation(self, ctx: Context):
         translated_sentences = await dispatch_translation(ctx.translator, [region.get_text() for region in ctx.text_regions], ctx.use_mtpe,
                                                           'cpu' if self._cuda_limited_memory else self.device)
 
         for region, translation in zip(ctx.text_regions, translated_sentences):
-            if ctx.uppercase:
-                translation = translation.upper()
-            elif ctx.lowercase:
+            if ctx.uppercase or ctx.lowercase:
                 translation = translation.upper()
             region.translation = translation
             region.target_lang = ctx.target_lang
@@ -443,7 +442,7 @@ class MangaTranslator():
         new_text_regions = []
         for region in ctx.text_regions:
             if not ctx.translator.is_none() and (region.translation.isnumeric() \
-                or (ctx.filter_text and re.search(ctx.filter_text, region.translation))):
+                    or (ctx.filter_text and re.search(ctx.filter_text, region.translation))):
                 if region.translation.strip():
                     logger.info(f'Filtered out: {region.translation}')
             else:
@@ -458,14 +457,21 @@ class MangaTranslator():
 
     async def _run_text_rendering(self, ctx: Context):
         if ctx.renderer == 'none':
-            output = ctx.img_inpainted
-        # manga2eng currently only supports horizontal rendering
+            return ctx.img_inpainted
         elif ctx.renderer == 'manga2eng' and ctx.text_regions and LANGAUGE_ORIENTATION_PRESETS.get(ctx.text_regions[0].target_lang) == 'h':
-            output = await dispatch_eng_render(ctx.img_inpainted, ctx.img_rgb, ctx.text_regions, ctx.font_path)
+            return await dispatch_eng_render(
+                ctx.img_inpainted, ctx.img_rgb, ctx.text_regions, ctx.font_path
+            )
         else:
-            output = await dispatch_rendering(ctx.img_inpainted, ctx.text_regions, ctx.font_path, ctx.font_size, ctx.font_size_offset,
-                                              ctx.font_size_minimum, ctx.render_mask)
-        return output
+            return await dispatch_rendering(
+                ctx.img_inpainted,
+                ctx.text_regions,
+                ctx.font_path,
+                ctx.font_size,
+                ctx.font_size_offset,
+                ctx.font_size_minimum,
+                ctx.render_mask,
+            )
 
     def _result_path(self, path: str) -> str:
         """
@@ -583,7 +589,7 @@ class MangaTranslatorWeb(MangaTranslator):
 
     async def _send_state(self, state: str, finished: bool):
         # wait for translation to be saved first (bad solution?)
-        finished = finished and not state == 'finished'
+        finished = finished and state != 'finished'
         while True:
             try:
                 data = {
@@ -733,7 +739,7 @@ class MangaTranslatorWS(MangaTranslator):
                 self._websocket = None
             await send_throttler.flush()
             return result
-        
+
         async def server_send_status(websocket, task_id, status):
             msg = ws_pb2.WebSocketMessage()
             msg.status.id = task_id
@@ -773,7 +779,7 @@ class MangaTranslatorWS(MangaTranslator):
                     await asyncio.sleep(0)
                     return False, False
 
-            logger_task.info(f'-- Translating image')
+            logger_task.info('-- Translating image')
             if translation_params:
                 for p, default_value in translation_params.items():
                     current_value = params.get(p)
@@ -793,7 +799,7 @@ class MangaTranslatorWS(MangaTranslator):
                     main_loop
                 )
             )
-            
+
             output: Image.Image = translation_dict.result
             if output is not None:
                 await server_send_status(websocket, task.id, 'saving')
@@ -810,7 +816,7 @@ class MangaTranslatorWS(MangaTranslator):
                 await server_send_status(websocket, task.id, 'uploading')
                 async with session.put(task.translation_mask, data=img_bytes) as resp:
                     if resp.status != 200:
-                        logger_task.error(f'-- Failed to upload result:')
+                        logger_task.error('-- Failed to upload result:')
                         logger_task.error(f'{resp.status}: {resp.reason}')
                         msg = ws_pb2.WebSocketMessage()
                         msg.status.id = task.id
@@ -826,7 +832,7 @@ class MangaTranslatorWS(MangaTranslator):
             try:
                 (success, has_translation_mask) = await server_process_inner(main_loop, logger_task, session, websocket, task)
             except Exception as e:
-                logger_task.error(f'-- Task failed with exception:')
+                logger_task.error('-- Task failed with exception:')
                 logger_task.error(f'{e.__class__.__name__}: {e}', exc_info=e if self.verbose else None)
                 (success, has_translation_mask) = False, False
             finally:
@@ -836,7 +842,7 @@ class MangaTranslatorWS(MangaTranslator):
                 result.finish_task.has_translation_mask = has_translation_mask
                 await websocket.send(result.SerializeToString())
                 await asyncio.sleep(0)
-                logger_task.info(f'-- Task finished')
+                logger_task.info('-- Task finished')
 
         async def async_server_thread(main_loop):
             from aiohttp import ClientSession
@@ -887,20 +893,19 @@ class MangaTranslatorWS(MangaTranslator):
         coroutine = super()._run_text_translation(ctx)
         if ctx.translator.has_offline():
             return await coroutine
-        else:
-            task_id = self._task_id
-            websocket = self._websocket
-            await self.task_lock.release()
-            result = await asyncio.wrap_future(
-                asyncio.run_coroutine_threadsafe(
-                    coroutine,
-                    ctx.ws_event_loop
-                )
+        task_id = self._task_id
+        websocket = self._websocket
+        await self.task_lock.release()
+        result = await asyncio.wrap_future(
+            asyncio.run_coroutine_threadsafe(
+                coroutine,
+                ctx.ws_event_loop
             )
-            await self.task_lock.acquire((1<<30) - ctx.ws_count)
-            self._task_id = task_id
-            self._websocket = websocket
-            return result
+        )
+        await self.task_lock.acquire((1<<30) - ctx.ws_count)
+        self._task_id = task_id
+        self._websocket = websocket
+        return result
 
     async def _run_text_rendering(self, ctx: Context):
         render_mask = (ctx.mask >= 127).astype(np.uint8)[:, :, None]
@@ -1014,27 +1019,32 @@ class MangaTranslatorAPI(MangaTranslator):
 
     async def err_handling(self, func, req, format):
         try:
-            if req.content_type == 'application/json' or req.content_type == 'multipart/form-data':
-                if req.content_type == 'application/json':
-                    d = await req.json()
-                else:
-                    d = await req.post()
-                schema = self.PostSchema()
-                data = schema.load(d)
-                if data.get('image') is None and data.get('base64Images') is None and data.get('url') is None:
-                    return web.json_response({'error': "Missing input", 'status': 422})
-                fil = await self.get_file(data.get('image'), data.get('base64Images'), data.get('url'))
-                if 'image' in data:
-                    del data['image']
-                if 'base64Images' in data:
-                    del data['base64Images']
-                if 'url' in data:
-                    del data['url']
-                loaded_data = await func(dict(self.params, **data), fil)
-                return format(loaded_data)
-            else:
-                return web.json_response({'error': "Wrong content type: " + req.content_type, 'status': 415},
-                                         status=415)
+            if req.content_type not in ['application/json', 'multipart/form-data']:
+                return web.json_response(
+                    {
+                        'error': f"Wrong content type: {req.content_type}",
+                        'status': 415,
+                    },
+                    status=415,
+                )
+            d = (
+                await req.json()
+                if req.content_type == 'application/json'
+                else await req.post()
+            )
+            schema = self.PostSchema()
+            data = schema.load(d)
+            if data.get('image') is None and data.get('base64Images') is None and data.get('url') is None:
+                return web.json_response({'error': "Missing input", 'status': 422})
+            fil = await self.get_file(data.get('image'), data.get('base64Images'), data.get('url'))
+            if 'image' in data:
+                del data['image']
+            if 'base64Images' in data:
+                del data['base64Images']
+            if 'url' in data:
+                del data['url']
+            loaded_data = await func(dict(self.params, **data), fil)
+            return format(loaded_data)
         except ValueError:
             return web.json_response({'error': "Wrong input type", 'status': 422}, status=422)
 
@@ -1056,20 +1066,19 @@ class MangaTranslatorAPI(MangaTranslator):
             jpg_as_text = base64.b64encode(buffer)
             color1, color2 = text_regions[i].get_font_colors()
             background = jpg_as_text.decode("utf-8")
-            results.append({
-                'originalText': text,
-                'minX': int(minX),
-                'minY': int(minY),
-                'maxX': int(maxX),
-                'maxY': int(maxY),
-                'language': langid.classify(text)[0],
-                'translatedText': trans,
-                'textColor': {
-                    'fg': color1.tolist(),
-                    'bg': color2.tolist()
-                },
-                'background': "data:image/jpg;base64," + background
-            })
+            results.append(
+                {
+                    'originalText': text,
+                    'minX': int(minX),
+                    'minY': int(minY),
+                    'maxX': int(maxX),
+                    'maxY': int(maxY),
+                    'language': langid.classify(text)[0],
+                    'translatedText': trans,
+                    'textColor': {'fg': color1.tolist(), 'bg': color2.tolist()},
+                    'background': f"data:image/jpg;base64,{background}",
+                }
+            )
         return web.json_response({'images': [results]})
 
     class PostSchema(Schema):

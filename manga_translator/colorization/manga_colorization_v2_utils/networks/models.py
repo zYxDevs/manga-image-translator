@@ -24,9 +24,9 @@ class SpectralNorm(nn.Module):
             self._make_params()
 
     def _update_u_v(self):
-        u = getattr(self.module, self.name + "_u")
-        v = getattr(self.module, self.name + "_v")
-        w = getattr(self.module, self.name + "_bar")
+        u = getattr(self.module, f"{self.name}_u")
+        v = getattr(self.module, f"{self.name}_v")
+        w = getattr(self.module, f"{self.name}_bar")
 
         height = w.data.shape[0]
         for _ in range(self.power_iterations):
@@ -39,9 +39,9 @@ class SpectralNorm(nn.Module):
 
     def _made_params(self):
         try:
-            u = getattr(self.module, self.name + "_u")
-            v = getattr(self.module, self.name + "_v")
-            w = getattr(self.module, self.name + "_bar")
+            u = getattr(self.module, f"{self.name}_u")
+            v = getattr(self.module, f"{self.name}_v")
+            w = getattr(self.module, f"{self.name}_bar")
             return True
         except AttributeError:
             return False
@@ -60,9 +60,9 @@ class SpectralNorm(nn.Module):
 
         del self.module._parameters[self.name]
 
-        self.module.register_parameter(self.name + "_u", u)
-        self.module.register_parameter(self.name + "_v", v)
-        self.module.register_parameter(self.name + "_bar", w_bar)
+        self.module.register_parameter(f"{self.name}_u", u)
+        self.module.register_parameter(f"{self.name}_v", v)
+        self.module.register_parameter(f"{self.name}_bar", w_bar)
 
 
     def forward(self, *args):
@@ -166,9 +166,17 @@ class FeatureConv(nn.Module):
         super(FeatureConv, self).__init__()
 
         no_bn = True
-        
-        seq = []
-        seq.append(nn.Conv2d(input_dim, output_dim, kernel_size=3, stride=1, padding=1, bias=False))
+
+        seq = [
+            nn.Conv2d(
+                input_dim,
+                output_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=False,
+            )
+        ]
         if not no_bn: seq.append(nn.BatchNorm2d(output_dim))
         seq.append(nn.ReLU(inplace=True))
         seq.append(nn.Conv2d(output_dim, output_dim, kernel_size=3, stride=2, padding=1, bias=False))

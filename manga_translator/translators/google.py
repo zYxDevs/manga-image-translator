@@ -4,6 +4,7 @@ A Translation module.
 
 You can translate text using this module.
 """
+
 import random
 import typing
 import time
@@ -36,13 +37,11 @@ RPC_ID = 'MkEWBc'
 SYS_PROXY = urllib.request.getproxies()
 SYS_HTTP_PROXY = None
 if 'http' in SYS_PROXY:
-    SYS_HTTP_PROXY = {}
-    SYS_HTTP_PROXY['http'] = SYS_PROXY['http']
-    SYS_HTTP_PROXY['https'] = SYS_PROXY['http']
-elif OPENAI_HTTP_PROXY :
+    SYS_HTTP_PROXY = {'http': SYS_PROXY['http'], 'https': SYS_PROXY['http']}
+elif OPENAI_HTTP_PROXY:
     SYS_HTTP_PROXY = {
-        "http": "http://%s" % OPENAI_HTTP_PROXY,
-        "https": "http://%s" % OPENAI_HTTP_PROXY
+        "http": f"http://{OPENAI_HTTP_PROXY}",
+        "https": f"http://{OPENAI_HTTP_PROXY}",
     }
 
 
@@ -121,7 +120,6 @@ class GoogleTranslator(CommonTranslator):
         if use_fallback:
             self.service_urls = DEFAULT_FALLBACK_SERVICE_URLS
             self.client_type = 'gtx'
-            pass
         else:
             #default way of working: use the defined values from user app
             self.service_urls = service_urls
@@ -138,7 +136,7 @@ class GoogleTranslator(CommonTranslator):
         langid.set_languages(langs)
         lang_to_queries = {l: [] for l in langs}
         result = []
-        for i, query in enumerate(queries):
+        for query in queries:
             detected_lang = langid.classify(query)[0]
             lang_to_queries[detected_lang].append(query)
             result.append(detected_lang)
@@ -266,12 +264,16 @@ class GoogleTranslator(CommonTranslator):
             'origin_pronunciation': origin_pronunciation,
             'parsed': parsed,
         }
-        result = Translated(src=from_lang, dest=to_lang, origin=origin,
-                            text=translated, pronunciation=pronunciation,
-                            parts=translated_parts,
-                            extra_data=extra_data,
-                            response=response)
-        return result
+        return Translated(
+            src=from_lang,
+            dest=to_lang,
+            origin=origin,
+            text=translated,
+            pronunciation=pronunciation,
+            parts=translated_parts,
+            extra_data=extra_data,
+            response=response,
+        )
 
     def _build_rpc_request(self, text: str, dest: str, src: str):
         return json.dumps([[
@@ -301,20 +303,18 @@ class GoogleTranslator(CommonTranslator):
             'soc-device': 1,
             'rt': 'c',
         }
- 
+
         r = await self.client.post(url, params=params, data=data)
 
         if r.status_code != 200 and self.raise_exception:
-            raise Exception('Unexpected status code "{}" from {}'.format(
-                r.status_code, self.service_urls))
+            raise Exception(
+                f'Unexpected status code "{r.status_code}" from {self.service_urls}'
+            )
 
         return r.text, r
 
     async def _translate_legacy(self, text, dest, src, override):
-        token = '' #dummy default value here as it is not used by api client
-        if self.client_type == 'webapp':
-            token = self.token_acquirer.do(text)
-
+        token = self.token_acquirer.do(text) if self.client_type == 'webapp' else ''
         params = utils.build_params(client=self.client_type, query=text, src=src, dest=dest,
                                     token=token, override=override)
 
@@ -326,8 +326,9 @@ class GoogleTranslator(CommonTranslator):
             return data, r
 
         if self.raise_exception:
-            raise Exception('Unexpected status code "{}" from {}'.format(
-                r.status_code, self.service_urls))
+            raise Exception(
+                f'Unexpected status code "{r.status_code}" from {self.service_urls}'
+            )
 
         DUMMY_DATA[0][0][0] = text
         return DUMMY_DATA, r
@@ -347,13 +348,10 @@ class GoogleTranslator(CommonTranslator):
             14: 'see-also',
         }
 
-        extra = {}
-
-        for index, category in response_parts_name_mapping.items():
-            extra[category] = data[index] if (
-                index < len(data) and data[index]) else None
-
-        return extra
+        return {
+            category: data[index] if (index < len(data) and data[index]) else None
+            for index, category in response_parts_name_mapping.items()
+        }
 
     async def translate_legacy(self, text, dest='en', src='auto', **kwargs):
         """Translate text from source language to destination language
@@ -450,18 +448,23 @@ class GoogleTranslator(CommonTranslator):
         if dest in EXCLUDES and pron == origin:
             pron = translated
 
-        # put final values into a new Translated object
-        result = Translated(src=src, dest=dest, origin=origin,
-                            text=translated, pronunciation=pron,
-                            extra_data=extra_data,
-                            response=response)
-
-        return result
+        return Translated(
+            src=src,
+            dest=dest,
+            origin=origin,
+            text=translated,
+            pronunciation=pron,
+            extra_data=extra_data,
+            response=response,
+        )
 
     async def detect(self, text: str):
         translated = await self._translate_query('auto', 'en', text)
-        result = Detected(lang=translated.src, confidence=translated.extra_data.get('confidence', None), response=translated._response)
-        return result
+        return Detected(
+            lang=translated.src,
+            confidence=translated.extra_data.get('confidence', None),
+            response=translated._response,
+        )
 
     async def detect_legacy(self, text, **kwargs):
         """Detect language of the input text
@@ -516,6 +519,4 @@ class GoogleTranslator(CommonTranslator):
                 confidence = data[8][-2][0]
         except Exception:  # pragma: nocover
             pass
-        result = Detected(lang=src, confidence=confidence, response=response)
-
-        return result
+        return Detected(lang=src, confidence=confidence, response=response)

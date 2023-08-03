@@ -84,7 +84,7 @@ class double_conv_up(nn.Module):
 class TextDetection(nn.Module):
     def __init__(self, pretrained=None):
         super(TextDetection, self).__init__()
-        self.backbone = resnet101(pretrained=True if pretrained else False)
+        self.backbone = resnet101(pretrained=bool(pretrained))
 
         self.conv_db = DBHead.DBHead(64, 0)
 

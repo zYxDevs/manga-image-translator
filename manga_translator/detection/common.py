@@ -120,8 +120,7 @@ class CommonDetector(InfererModule):
         mid = 0.5
         mean = np.mean(gray)
         gamma = np.log(mid * 255) / np.log(mean)
-        img_gamma = np.power(image, gamma).clip(0,255).astype(np.uint8)
-        return img_gamma
+        return np.power(image, gamma).clip(0,255).astype(np.uint8)
 
     def _add_histogram_equalization(self, image: np.ndarray):
         img_yuv = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
@@ -129,9 +128,7 @@ class CommonDetector(InfererModule):
         # equalize the histogram of the Y channel
         img_yuv[:,:,0] = cv2.equalizeHist(img_yuv[:,:,0])
 
-        # convert the YUV image back to RGB format
-        img_output = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
-        return img_output
+        return cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
 
 
 class OfflineDetector(CommonDetector, ModelWrapper):

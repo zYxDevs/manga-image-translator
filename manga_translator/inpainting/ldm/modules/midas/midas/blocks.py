@@ -89,7 +89,7 @@ def _make_efficientnet_backbone(effnet):
     pretrained = nn.Module()
 
     pretrained.layer1 = nn.Sequential(
-        effnet.conv_stem, effnet.bn1, effnet.act1, *effnet.blocks[0:2]
+        effnet.conv_stem, effnet.bn1, effnet.act1, *effnet.blocks[:2]
     )
     pretrained.layer2 = nn.Sequential(*effnet.blocks[2:3])
     pretrained.layer3 = nn.Sequential(*effnet.blocks[3:5])
