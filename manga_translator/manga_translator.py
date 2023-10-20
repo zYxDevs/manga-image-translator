@@ -90,9 +90,18 @@ class MangaTranslator():
         if self._cuda_limited_memory and not self.using_cuda:
             self.device = 'cuda'
         if self.using_cuda and not torch.cuda.is_available():
-            raise Exception('CUDA compatible device could not be found whilst --use-cuda args was set...')
+            raise Exception(
+                'CUDA compatible device could not be found in torch whilst --use-cuda args was set.\n' \
+                'Is the correct pytorch version installed? (See https://pytorch.org/)')
 
         self.result_sub_folder = ''
+
+        # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
+        # in PyTorch 1.12 and later.
+        torch.backends.cuda.matmul.allow_tf32 = True
+
+        # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
+        torch.backends.cudnn.allow_tf32 = True
 
     @property
     def using_cuda(self):
@@ -167,7 +176,7 @@ class MangaTranslator():
 
     async def _translate_file(self, path: str, dest: str, params: dict):
         if not params.get('overwrite') and os.path.exists(dest):
-            logger.info(f'Skipping as already translated: {dest}')
+            logger.info(f'Skipping as already translated: "{dest}". Use --overwrite to overwrite existing translations.')
             await self._report_progress('saved', True)
             return True
         logger.info(f'Translating: "{path}"')
