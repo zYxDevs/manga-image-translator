@@ -3,30 +3,30 @@ import cv2
 
 def check_color(image):
     """
-    Determine whether there are colors in non black, gray, white, and other gray areas in an RGB color image。
+    Determine whether there are colors in non-black, gray, white, and other gray areas in an RGB color image.
     params：
     image -- np.array
     return：
     True -- Colors with non black, gray, white, and other grayscale areas
     False -- Images are all grayscale areas
     """
+    # Calculate grayscale version of the image using vectorized operations
     gray_image = np.dot(image[...,:3], [0.299, 0.587, 0.114])
-    n=0
-    for i in range(image.shape[0]):
-        for j in range(image.shape[1]):
-            color = image[i, j]
-            color_distance = np.sum((color - gray_image[i, j])**2)
-            if color_distance > 100:
-                n+=1
-    # gt 10
-    if n>10:
-        return True
-    return False
+    gray_image = gray_image[..., np.newaxis]
+
+    # Calculate color distance for all pixels in a vectorized manner
+    color_distance = np.sum((image - gray_image) ** 2, axis=-1)
+
+    # Count the number of pixels where color distance exceeds the threshold
+    n = np.sum(color_distance > 100)
+
+    # Return True if there are more than 10 such pixels
+    return n > 10
 
 def is_ignore(region_img, ignore_bubble = 0):
     """
     Principle: Normally, white bubbles and their text boxes are mostly white, while black bubbles and their text boxes are mostly black. We calculate the ratio of white or black pixels around the text block to the total pixels, and judge whether the area is a normal bubble area or not. Based on the value of the --ignore-bubble parameter, if the ratio is greater than the base value and less than (100-base value), then it is considered a non-bubble area.
-    The normal range for ingore-bubble is 1-50, and other values are considered not input. The recommended value for ingore-bubble is 10. The smaller it is, the more likely it is to recognize normal bubbles as image text and skip them. The larger it is, the more likely it is to recognize image text as normal bubbles.
+    The normal range for ignore-bubble is 1-50, and other values are considered not input. The recommended value for ignore-bubble is 10. The smaller it is, the more likely it is to recognize normal bubbles as image text and skip them. The larger it is, the more likely it is to recognize image text as normal bubbles.
 
     Assuming ignore-bubble = 10
     The text block is surrounded by white if it is <10, and the text block is very likely to be a normal white bubble.

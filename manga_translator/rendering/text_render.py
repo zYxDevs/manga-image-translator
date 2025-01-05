@@ -12,6 +12,12 @@ from langcodes import standardize_tag
 
 from ..utils import BASE_PATH, is_punctuation, is_whitespace
 
+try:
+    HYPHENATOR_LANGUAGES.remove('fr')
+    HYPHENATOR_LANGUAGES.append('fr_FR')
+except Exception:
+    pass
+
 CJK_H2V = {
     "‥": "︰",
     "—": "︱",
@@ -56,7 +62,7 @@ CJK_V2H = {
 }
 
 def CJK_Compatibility_Forms_translate(cdpt: str, direction: int):
-    """direction: 0 - horizonal, 1 - vertical"""
+    """direction: 0 - horizontal, 1 - vertical"""
     if cdpt == 'ー' and direction == 1:
         return 'ー', 90
     if cdpt in CJK_V2H:
@@ -116,7 +122,10 @@ def add_color(bw_char_map, color, stroke_char_map, stroke_color):
     # plt.show()
 
     # since bg rect is always larger than fg rect, we can just use the bg rect
-    x, y, w, h = cv2.boundingRect(stroke_char_map)
+    if stroke_color is None :
+        x, y, w, h = cv2.boundingRect(bw_char_map)
+    else :
+        x, y, w, h = cv2.boundingRect(stroke_char_map)
 
     fg = np.zeros((h, w, 4), dtype = np.uint8)
     fg[:,:,0] = color[0]
@@ -124,6 +133,8 @@ def add_color(bw_char_map, color, stroke_char_map, stroke_color):
     fg[:,:,2] = color[2]
     fg[:,:,3] = bw_char_map[y:y+h, x:x+w]
 
+    if stroke_color is None :
+        stroke_color = color
     bg = np.zeros((stroke_char_map.shape[0], stroke_char_map.shape[1], 4), dtype = np.uint8)
     bg[:,:,0] = stroke_color[0]
     bg[:,:,1] = stroke_color[1]
@@ -297,10 +308,12 @@ def put_char_vertical(font_size: int, cdpt: str, pen_l: Tuple[int, int], canvas_
         canvas_border[pen_border[1]:pen_border[1]+bitmap_b.rows, pen_border[0]:pen_border[0]+bitmap_b.width] = cv2.add(canvas_border[pen_border[1]:pen_border[1]+bitmap_b.rows, pen_border[0]:pen_border[0]+bitmap_b.width], bitmap_border)
     return char_offset_y
 
-def put_text_vertical(font_size: int, text: str, h: int, alignment: str, fg: Tuple[int, int, int], bg: Optional[Tuple[int, int, int]]):
+def put_text_vertical(font_size: int, text: str, h: int, alignment: str, fg: Tuple[int, int, int], bg: Optional[Tuple[int, int, int]], line_spacing: int):
     text = compact_special_symbols(text)
+    if not text :
+        return
     bg_size = int(max(font_size * 0.07, 1)) if bg is not None else 0
-    spacing_x = int(font_size * 0.2)
+    spacing_x = int(font_size * (line_spacing or 0.2))
 
     # make large canvas
     num_char_y = h // font_size
@@ -332,7 +345,6 @@ def put_text_vertical(font_size: int, text: str, h: int, alignment: str, fg: Tup
     # colorize
     canvas_border = np.clip(canvas_border, 0, 255)
     line_box = add_color(canvas_text, fg, canvas_border, bg)
-
     # rect
     x, y, w, h = cv2.boundingRect(canvas_border)
     return line_box[y:y+h, x:x+w]
@@ -346,7 +358,10 @@ def select_hyphenator(lang: str):
                 break
         else:
             return None
-    return Hyphenator(lang)
+    try:
+        return Hyphenator(lang)
+    except Exception:
+        return None
 
 # @functools.lru_cache(maxsize = 1024, typed = True)
 def get_char_offset_x(font_size: int, cdpt: str):
@@ -397,8 +412,11 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
     hyphenator = select_hyphenator(language)
     for i, word in enumerate(words):
         new_syls = []
-        if hyphenator:
-            new_syls = hyphenator.syllables(word)
+        if hyphenator and len(word) <= 100:
+            try:
+                new_syls = hyphenator.syllables(word)
+            except Exception:
+                new_syls = []
         if len(new_syls) == 0:
             if len(word) <= 3:
                 new_syls = [word]
@@ -456,7 +474,7 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
 
 
     # Step 1:
-    # Arrange words without hyphenating unless neccessary
+    # Arrange words without hyphenating unless necessary
 
     i = 0
     while True:
@@ -498,7 +516,7 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
     # Step 2:
     # Compare two adjacent lines and try to hyphenate backwards
 
-    # Avoid hyphenation if max_lines isnt fully used
+    # Avoid hyphenation if max_lines isn't fully used
     if hyphenate and len(line_words_list) > max_lines:
         line_idx = 0
         while line_idx < len(line_words_list) - 1:
@@ -607,6 +625,8 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
             syl_start_idx, syl_end_idx = get_present_syllables_range(i, j)
             current_syllables = syllables[word_idx][syl_start_idx:syl_end_idx]
             line_text += ''.join(current_syllables)
+            if len(line_text) == 0:
+                continue
             if j == 0 and i > 0 and line_text_list[-1][-1] == '-' and line_text[0] == '-':
                 line_text = line_text[1:]
                 line_width_list[i] -= hyphen_offset_x
@@ -621,7 +641,7 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
         # print(line_text, get_string_width(font_size, line_text), line_width_list[i])
         # assert(line_width_list[i] == get_string_width(font_size, line_text))
 
-        # Shouldnt be needed but there is apparently still a bug somewhere (See #458)
+        # Shouldn't be needed but there is apparently still a bug somewhere (See #458)
         line_width_list[i] = get_string_width(font_size, line_text)
         line_text_list.append(line_text)
 
@@ -659,10 +679,12 @@ def put_char_horizontal(font_size: int, cdpt: str, pen_l: Tuple[int, int], canva
 
 def put_text_horizontal(font_size: int, text: str, width: int, height: int, alignment: str,
                         reversed_direction: bool, fg: Tuple[int, int, int], bg: Tuple[int, int, int],
-                        lang: str = 'en_US', hyphenate: bool = True):
+                        lang: str = 'en_US', hyphenate: bool = True, line_spacing: int = 0):
     text = compact_special_symbols(text)
+    if not text :
+        return
     bg_size = int(max(font_size * 0.07, 1)) if bg is not None else 0
-    spacing_y = int(font_size * 0.2)
+    spacing_y = int(font_size * (line_spacing or 0.01))
 
     # calc
     # print(width)
@@ -711,9 +733,8 @@ def put_text_horizontal(font_size: int, text: str, width: int, height: int, alig
     canvas_border = np.clip(canvas_border, 0, 255)
     line_box = add_color(canvas_text, fg, canvas_border, bg)
 
-    # rect
-    x, y, width, height = cv2.boundingRect(canvas_border)
-    return line_box[y:y+height, x:x+width]
+    x, y, w, h = cv2.boundingRect(canvas_border)
+    return line_box[y:y+h, x:x+w]
 
 # def put_text(img: np.ndarray, text: str, line_count: int, x: int, y: int, w: int, h: int, fg: Tuple[int, int, int], bg: Optional[Tuple[int, int, int]]):
 #     pass

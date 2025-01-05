@@ -25,7 +25,7 @@ class SegDetectorRepresenter():
         pred:
             binary: text region segmentation map, with shape (N, H, W)
             thresh: [if exists] thresh hold prediction with shape (N, H, W)
-            thresh_binary: [if exists] binarized with threshhold, (N, H, W)
+            thresh_binary: [if exists] binarized with threshold, (N, H, W)
         '''
         pred = pred[:, 0, :, :]
         segmentation = self.binarize(pred)
@@ -112,7 +112,7 @@ class SegDetectorRepresenter():
         except ValueError:
             return [], []
         num_contours = min(len(contours), self.max_candidates)
-        boxes = np.zeros((num_contours, 4, 2), dtype=np.int16)
+        boxes = np.zeros((num_contours, 4, 2), dtype=np.int64)
         scores = np.zeros((num_contours,), dtype=np.float32)
 
         for index in range(num_contours):
@@ -139,7 +139,7 @@ class SegDetectorRepresenter():
             startidx = box.sum(axis=1).argmin()
             box = np.roll(box, 4-startidx, 0)
             box = np.array(box)
-            boxes[index, :, :] = box.astype(np.int16)
+            boxes[index, :, :] = box.astype(np.int64)
             scores[index] = score
         return boxes, scores
 

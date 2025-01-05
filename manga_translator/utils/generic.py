@@ -1,5 +1,5 @@
 import os
-from typing import List, Callable, Tuple
+from typing import List, Callable, Tuple, Optional
 import numpy as np
 import cv2
 import functools
@@ -26,18 +26,29 @@ BASE_PATH = os.path.dirname(MODULE_PATH)
 
 # Adapted from argparse.Namespace
 class Context(dict):
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
     def __init__(self, **kwargs):
         for name in kwargs:
             setattr(self, name, kwargs[name])
+    
+    def __getattr__(self, item):
+        return self.get(item)
+    
+    def __delattr__(self, key) -> None:
+        return self.__delitem__(key)
+
+    def __setattr__(self, key, value):
+        return self.__setitem__(key, value)
+
+    def __getstate__(self):
+        return self.copy()
+
+    def __setstate__(self, state):
+        self.update(state)
 
     def __eq__(self, other):
         if not isinstance(other, Context):
             return NotImplemented
-        return vars(self) == vars(other)
+        return dict(self) == dict(other)
 
     def __contains__(self, key):
         return key in self.keys()
@@ -65,7 +76,7 @@ class Context(dict):
 
 # TODO: Add TranslationContext for type linting
 
-def atoi(text):
+def atoi(text: str) -> int | str:
     return int(text) if text.isdigit() else text
 
 def natural_sort(l: List[str]):
@@ -81,7 +92,7 @@ def repeating_sequence(s: str):
 
 def is_whitespace(ch):
     """Checks whether `chars` is a whitespace character."""
-    # \t, \n, and \r are technically contorl characters but we treat them
+    # \t, \n, and \r are technically control characters but we treat them
     # as whitespace since they are generally considered as such.
     if ch == " " or ch == "\t" or ch == "\n" or ch == "\r" or ord(ch) == 0:
         return True
@@ -116,9 +127,18 @@ def is_punctuation(ch):
         return True
     return False
 
-def count_valuable_text(text) -> int:
-    # return sum([1 for ch in text if re.search(r'\w', ch)])
-    return sum([1 for ch in text if not is_punctuation(ch) and not is_control(ch) and not is_whitespace(ch)])
+def is_valuable_char(ch):
+    # return re.search(r'[^\d\W]', ch)
+    return not is_punctuation(ch) and not is_control(ch) and not is_whitespace(ch) and not ch.isdigit()
+
+def is_valuable_text(text):
+    for ch in text:
+        if is_valuable_char(ch):
+            return True
+    return False
+
+def count_valuable_text(text: str) -> int:
+    return sum([1 for ch in text if is_valuable_char(ch)])
 
 def is_right_to_left_char(ch):
     """Checks whether the char belongs to a right to left alphabet."""
@@ -161,9 +181,6 @@ def get_filename_from_url(url: str, default: str = '') -> str:
     if m:
         return m.group(1)
     return default
-
-def is_url(s: str):
-    return re.search(r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+$', s) and True
 
 def download_url_with_progressbar(url: str, path: str):
     if os.path.basename(path) in ('.', '') or os.path.isdir(path):
@@ -240,7 +257,7 @@ class AvgMeter():
         else:
             return 0
 
-def load_image(img: Image.Image):
+def load_image(img: Image.Image) -> Tuple[np.ndarray, Optional[Image.Image]]:
     if img.mode == 'RGBA':
         # from https://stackoverflow.com/questions/9166400/convert-rgba-png-to-rgb-with-pil
         img.load()  # needed for split()
@@ -339,17 +356,50 @@ class BBox(object):
     @property
     def xywh(self):
         return np.array([self.x, self.y, self.w, self.h], dtype=np.int32)
+    
+
+def sort_pnts(pts: np.ndarray):
+    '''
+    Direction must be provided for sorting.
+    The longer structure vector (mean of long side vectors) of input points is used to determine the direction.
+    It is reliable enough for text lines but not for blocks.
+    '''
+
+    if isinstance(pts, List):
+        pts = np.array(pts)
+    assert isinstance(pts, np.ndarray) and pts.shape == (4, 2)
+    pairwise_vec = (pts[:, None] - pts[None]).reshape((16, -1))
+    pairwise_vec_norm = np.linalg.norm(pairwise_vec, axis=1)
+    long_side_ids = np.argsort(pairwise_vec_norm)[[8, 10]]
+    long_side_vecs = pairwise_vec[long_side_ids]
+    inner_prod = (long_side_vecs[0] * long_side_vecs[1]).sum()
+    if inner_prod < 0:
+        long_side_vecs[0] = -long_side_vecs[0]
+    struc_vec = np.abs(long_side_vecs.mean(axis=0))
+    is_vertical = struc_vec[0] <= struc_vec[1]
+
+    if is_vertical:
+        pts = pts[np.argsort(pts[:, 1])]
+        pts = pts[[*np.argsort(pts[:2, 0]), *np.argsort(pts[2:, 0])[::-1] + 2]]
+        return pts, is_vertical
+    else:
+        pts = pts[np.argsort(pts[:, 0])]
+        pts_sorted = np.zeros_like(pts)
+        pts_sorted[[0, 3]] = sorted(pts[[0, 1]], key=lambda x: x[1])
+        pts_sorted[[1, 2]] = sorted(pts[[2, 3]], key=lambda x: x[1])
+        return pts_sorted, is_vertical
+
 
 class Quadrilateral(object):
     """
     Helper for storing textlines that contains various helper functions.
     """
-    def __init__(self, pts: np.ndarray, text: str, prob: float, fg_r: int = 0, fg_g: int = 0, fg_b: int = 0, bg_r: int = 0, bg_g: int = 0, bg_b: int = 0):
-        self.pts = pts
-        # Sort coordinates to start at the top left and go clockwise
-        self.pts = self.pts[np.argsort(self.pts[:,1])]
-        self.pts = self.pts[[*np.argsort(self.pts[:2,0]), *np.argsort(self.pts[2:,0])[::-1] + 2]]
-
+    def __init__(self, pts: np.ndarray, text: str, prob: float, fg_r: int = 0, fg_g: int = 0, fg_b: int = 0, bg_r: int = 0, bg_g: int = 0, bg_b: int = 0):    
+        self.pts, is_vertical = sort_pnts(pts)
+        if is_vertical:
+            self.direction = 'v'
+        else:
+            self.direction = 'h'
         self.text = text
         self.prob = prob
         self.fg_r = fg_r
@@ -434,21 +484,36 @@ class Quadrilateral(object):
         v_vec = l1b - l1a
         h_vec = l2b - l2a
         ratio = np.linalg.norm(v_vec) / np.linalg.norm(h_vec)
-        src_pts = self.pts.astype(np.float32)
+
+        src_pts = self.pts.astype(np.int64).copy()
+        im_h, im_w = img.shape[:2]
+
+        x1, y1, x2, y2 = src_pts[:, 0].min(), src_pts[:, 1].min(), src_pts[:, 0].max(), src_pts[:, 1].max()
+        x1 = np.clip(x1, 0, im_w)
+        y1 = np.clip(y1, 0, im_h)
+        x2 = np.clip(x2, 0, im_w)
+        y2 = np.clip(y2, 0, im_h)
+        # cv2.warpPerspective could overflow if image size is too large, better crop it here
+        img_croped = img[y1: y2, x1: x2]
+
+        
+        src_pts[:, 0] -= x1
+        src_pts[:, 1] -= y1
+
         self.assigned_direction = direction
         if direction == 'h':
             h = max(int(textheight), 2)
             w = max(int(round(textheight / ratio)), 2)
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            region = cv2.warpPerspective(img, M, (w, h))
+            region = cv2.warpPerspective(img_croped, M, (w, h))
             return region
         elif direction == 'v':
             w = max(int(textheight), 2)
             h = max(int(round(textheight * ratio)), 2)
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            region = cv2.warpPerspective(img, M, (w, h))
+            region = cv2.warpPerspective(img_croped, M, (w, h))
             region = cv2.rotate(region, cv2.ROTATE_90_COUNTERCLOCKWISE)
             return region
 
@@ -477,16 +542,6 @@ class Quadrilateral(object):
         if abs(np.dot(unit_vector_1, e1)) < 0.05 or abs(np.dot(unit_vector_1, e2)) < 0.05 or abs(np.dot(unit_vector_2, e1)) < 0.05 or abs(np.dot(unit_vector_2, e2)) < 0.05:
             return True
         return False
-
-    @functools.cached_property
-    def direction(self) -> str:
-        [l1a, l1b, l2a, l2b] = [a.astype(np.float32) for a in self.structure]
-        v_vec = l1b - l1a
-        h_vec = l2b - l2a
-        if np.linalg.norm(v_vec) > np.linalg.norm(h_vec):
-            return 'v'
-        else:
-            return 'h'
 
     @functools.cached_property
     def cosangle(self) -> float:

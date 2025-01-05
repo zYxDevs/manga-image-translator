@@ -49,7 +49,7 @@ class SegDetectorRepresenter():
         pred:
             binary: text region segmentation map, with shape (N, H, W)
             thresh: [if exists] thresh hold prediction with shape (N, H, W)
-            thresh_binary: [if exists] binarized with threshhold, (N, H, W)
+            thresh_binary: [if exists] binarized with threshold, (N, H, W)
         '''
         pred = pred[:, 0, :, :]
         segmentation = self.binarize(pred)
@@ -140,7 +140,7 @@ class SegDetectorRepresenter():
         height, width = bitmap.shape
         contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         num_contours = min(len(contours), self.max_candidates)
-        boxes = np.zeros((num_contours, 4, 2), dtype=np.int16)
+        boxes = np.zeros((num_contours, 4, 2), dtype=np.int64)
         scores = np.zeros((num_contours,), dtype=np.float32)
 
         for index in range(num_contours):
@@ -166,7 +166,7 @@ class SegDetectorRepresenter():
 
             box[:, 0] = np.clip(np.round(box[:, 0] / width * dest_width), 0, dest_width)
             box[:, 1] = np.clip(np.round(box[:, 1] / height * dest_height), 0, dest_height)
-            boxes[index, :, :] = box.astype(np.int16)
+            boxes[index, :, :] = box.astype(np.int64)
             scores[index] = score
         return boxes, scores
 
@@ -522,12 +522,12 @@ def shrink_polygon_pyclipper(polygon, shrink_ratio):
     subject = [tuple(l) for l in polygon]
     padding = pyclipper.PyclipperOffset()
     padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
-    shrinked = padding.Execute(-distance)
-    if shrinked == []:
-        shrinked = np.array(shrinked)
+    shrunk = padding.Execute(-distance)
+    if shrunk == []:
+        shrunk = np.array(shrunk)
     else:
-        shrinked = np.array(shrinked[0]).reshape(-1, 2)
-    return shrinked
+        shrunk = np.array(shrunk[0]).reshape(-1, 2)
+    return shrunk
 
 class MakeShrinkMap():
     r'''
@@ -563,12 +563,12 @@ class MakeShrinkMap():
                 cv2.fillPoly(mask, polygon.astype(np.int32)[np.newaxis, :, :], 0)
                 ignore_tags[i] = True
             else:
-                shrinked = self.shrink_func(polygon, self.shrink_ratio)
-                if shrinked.size == 0:
+                shrunk = self.shrink_func(polygon, self.shrink_ratio)
+                if shrunk.size == 0:
                     cv2.fillPoly(mask, polygon.astype(np.int32)[np.newaxis, :, :], 0)
                     ignore_tags[i] = True
                     continue
-                cv2.fillPoly(gt, [shrinked.astype(np.int32)], 1)
+                cv2.fillPoly(gt, [shrunk.astype(np.int32)], 1)
 
         data['shrink_map'] = gt
         data['shrink_mask'] = mask

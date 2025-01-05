@@ -5,15 +5,16 @@ from shapely.geometry import Polygon, MultiPoint
 from functools import cached_property
 import copy
 import re
+import py3langid as langid
 
-from .generic import color_difference, is_right_to_left_char, count_valuable_text
+from .generic import color_difference, is_right_to_left_char, is_valuable_char
 # from ..detection.ctd_utils.utils.imgproc_utils import union_area, xywh2xyxypoly
 
 # LANG_LIST = ['eng', 'ja', 'unknown']
 # LANGCLS2IDX = {'eng': 0, 'ja': 1, 'unknown': 2}
 
 # determines render direction
-LANGAUGE_ORIENTATION_PRESETS = {
+LANGUAGE_ORIENTATION_PRESETS = {
     'CHS': 'auto',
     'CHT': 'auto',
     'CSY': 'h',
@@ -34,17 +35,18 @@ LANGAUGE_ORIENTATION_PRESETS = {
     'UKR': 'h',
     'VIN': 'h',
     'ARA': 'hr', # horizontal reversed (right to left)
+    'FIL': 'h'
 }
 
 class TextBlock(object):
     """
     Object that stores a block of text made up of textlines.
     """
-    def __init__(self, lines: List,
-                 text: List[str] = None,
+    def __init__(self, lines: List[Tuple[int, int, int, int]],
+                 texts: List[str] = None,
                  language: str = 'unknown',
                  font_size: float = -1,
-                 angle: int = 0,
+                 angle: float = 0,
                  translation: str = "",
                  fg_color: Tuple[float] = (0, 0, 0),
                  bg_color: Tuple[float] = (0, 0, 0),
@@ -58,9 +60,9 @@ class TextBlock(object):
                  alignment: str = 'auto',
                  rich_text: str = "",
                  _bounding_rect: List = None,
-                 accumulate_color = True,
                  default_stroke_width = 0.2,
                  font_weight = 50,
+                 source_lang: str = "",
                  target_lang: str = "",
                  opacity: float = 1.,
                  shadow_radius: float = 0.,
@@ -76,12 +78,20 @@ class TextBlock(object):
         self.angle = angle
         self._direction = direction
 
-        self.text = text if text is not None else []
+        self.texts = texts if texts is not None else []
+        self.text = texts[0]
+        if self.text and len(texts) > 1:
+            for txt in texts[1:]:
+                first_cjk = '\u3000' <= self.text[-1] <= '\u9fff'
+                second_cjk = txt and ('\u3000' <= txt[0] <= '\u9fff')
+                if first_cjk or second_cjk :
+                    self.text += txt
+                else :
+                    self.text += ' ' + txt
         self.prob = prob
 
         self.translation = translation
 
-        # note they're accumulative rgb values of textlines
         self.fg_colors = fg_color
         self.bg_colors = bg_color
 
@@ -94,12 +104,12 @@ class TextBlock(object):
         self.line_spacing = line_spacing
         self.letter_spacing = letter_spacing
         self._alignment = alignment
+        self._source_lang = source_lang
         self.target_lang = target_lang
 
         self._bounding_rect = _bounding_rect
         self.default_stroke_width = default_stroke_width
         self.font_weight = font_weight
-        self.accumulate_color = accumulate_color
         self.adjust_bg_color = True
 
         self.opacity = opacity
@@ -192,7 +202,7 @@ class TextBlock(object):
         lines = self.lines.reshape((-1, 2))
         return MultiPoint([tuple(l) for l in lines]).convex_hull.area
     
-    def normalizd_width_list(self) -> List[float]:
+    def normalized_width_list(self) -> List[float]:
         polygons = self.unrotated_polygons
         width_list = []
         for polygon in polygons:
@@ -212,36 +222,71 @@ class TextBlock(object):
         return blk_dict
 
     def get_transformed_region(self, img: np.ndarray, line_idx: int, textheight: int, maxwidth: int = None) -> np.ndarray:
-        src_pts = np.array(self.lines[line_idx], dtype=np.float64)
+        im_h, im_w = img.shape[:2]
 
+        line = np.round(np.array(self.lines[line_idx])).astype(np.int64)
+
+        x1, y1, x2, y2 = line[:, 0].min(), line[:, 1].min(), line[:, 0].max(), line[:, 1].max()
+        x1 = np.clip(x1, 0, im_w)
+        y1 = np.clip(y1, 0, im_h)
+        x2 = np.clip(x2, 0, im_w)
+        y2 = np.clip(y2, 0, im_h)
+        img_croped = img[y1: y2, x1: x2]
+        
+        direction = 'v' if self.src_is_vertical else 'h'
+
+        src_pts = line.copy()
+        src_pts[:, 0] -= x1
+        src_pts[:, 1] -= y1
         middle_pnt = (src_pts[[1, 2, 3, 0]] + src_pts) / 2
         vec_v = middle_pnt[2] - middle_pnt[0]   # vertical vectors of textlines
         vec_h = middle_pnt[1] - middle_pnt[3]   # horizontal vectors of textlines
-        ratio = np.linalg.norm(vec_v) / np.linalg.norm(vec_h)
+        norm_v = np.linalg.norm(vec_v)
+        norm_h = np.linalg.norm(vec_h)
 
-        if ratio < 1:
+        if textheight is None:
+            if direction == 'h' :
+                textheight = int(norm_v)
+            else:
+                textheight = int(norm_h)
+        
+        if norm_v <= 0 or norm_h <= 0:
+            print('invalid textpolygon to target img')
+            return np.zeros((textheight, textheight, 3), dtype=np.uint8)
+        ratio = norm_v / norm_h
+
+        if direction == 'h' :
             h = int(textheight)
             w = int(round(textheight / ratio))
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            region = cv2.warpPerspective(img, M, (w, h))
-        else:
+            if M is None:
+                print('invalid textpolygon to target img')
+                return np.zeros((textheight, textheight, 3), dtype=np.uint8)
+            region = cv2.warpPerspective(img_croped, M, (w, h))
+        elif direction == 'v' :
             w = int(textheight)
             h = int(round(textheight * ratio))
             dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            region = cv2.warpPerspective(img, M, (w, h))
+            if M is None:
+                print('invalid textpolygon to target img')
+                return np.zeros((textheight, textheight, 3), dtype=np.uint8)
+            region = cv2.warpPerspective(img_croped, M, (w, h))
             region = cv2.rotate(region, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
         if maxwidth is not None:
             h, w = region.shape[: 2]
             if w > maxwidth:
                 region = cv2.resize(region, (maxwidth, h))
+
         return region
 
-    def get_text(self):
-        if isinstance(self.text, str):
-            return self.text
-        return ' '.join(self.text).strip()
+    @property
+    def source_lang(self):
+        if not self._source_lang:
+            self._source_lang = langid.classify(self.text)[0]
+        return self._source_lang
 
     def get_translation_for_rendering(self):
         text = self.translation
@@ -259,7 +304,7 @@ class TextBlock(object):
                     l[j1], l[j2] = l[j2], l[j1]
 
             for i, c in enumerate(text):
-                if not is_right_to_left_char(c) and count_valuable_text(c) > 0:
+                if not is_right_to_left_char(c) and is_valuable_char(c):
                     if l2r_idx < 0:
                         l2r_idx = i
                 elif l2r_idx >= 0 and i - l2r_idx > 1:
@@ -278,7 +323,7 @@ class TextBlock(object):
         A determining factor of whether we should be sticking to the strict per textline
         text distribution when rendering.
         """
-        if len(self.text) <= 1:
+        if len(self.texts) <= 1:
             return False
 
         bullet_regexes = [
@@ -287,7 +332,7 @@ class TextBlock(object):
             r'[QA]:', # Q: ... A: ...
         ]
         bullet_type_idx = -1
-        for line_text in self.text:
+        for line_text in self.texts:
             for i, breg in enumerate(bullet_regexes):
                 if re.search(r'(?:[\n]|^)((?:' + breg + r')[\s]*)', line_text):
                     if bullet_type_idx >= 0 and bullet_type_idx != i:
@@ -295,31 +340,24 @@ class TextBlock(object):
                     bullet_type_idx = i
         return bullet_type_idx >= 0
 
-    def set_font_colors(self, fg_colors, bg_colors, accumulate=True):
-        self.accumulate_color = accumulate
-        num_lines = len(self.lines) if accumulate and len(self.lines) > 0 else 1
-        # set font color
-        fg_colors = np.array(fg_colors) * num_lines
-        self.fg_colors = fg_colors
-        # set stroke color  
-        bg_colors = np.array(bg_colors) * num_lines
-        self.bg_colors = bg_colors
+    def set_font_colors(self, fg_colors, bg_colors):
+        self.fg_colors = np.array(fg_colors)
+        self.bg_colors = np.array(bg_colors)
+
+    def update_font_colors(self, fg_colors: np.ndarray, bg_colors: np.ndarray):
+        nlines = len(self)
+        if nlines > 0:
+            self.fg_colors += fg_colors / nlines
+            self.bg_colors += bg_colors / nlines
 
     def get_font_colors(self, bgr=False):
-        num_lines = len(self.lines)
 
-        frgb = np.array(self.fg_colors)
-        brgb = np.array(self.bg_colors)
-        if self.accumulate_color:
-            if num_lines > 0:
-                frgb = (frgb / num_lines).astype(np.int32)
-                brgb = (brgb / num_lines).astype(np.int32)
-                if bgr:
-                    frgb, brgb = frgb[::-1], brgb[::-1]
-                else:
-                    frgb, brgb = frgb, brgb
-            else:
-                return [0, 0, 0], [0, 0, 0]
+        frgb = np.array(self.fg_colors).astype(np.int32)
+        brgb = np.array(self.bg_colors).astype(np.int32)
+
+        if bgr:
+            frgb = frgb[::-1]
+            brgb = brgb[::-1]
 
         if self.adjust_bg_color:
             fg_avg = np.mean(frgb)
@@ -332,7 +370,7 @@ class TextBlock(object):
     def direction(self):
         """Render direction determined through used language or aspect ratio."""
         if self._direction not in ('h', 'v', 'hr', 'vr'):
-            d = LANGAUGE_ORIENTATION_PRESETS.get(self.target_lang)
+            d = LANGUAGE_ORIENTATION_PRESETS.get(self.target_lang)
             if d in ('h', 'v', 'hr', 'vr'):
                 return d
 
@@ -491,7 +529,7 @@ def sort_regions(regions: List[TextBlock], right_to_left=True) -> List[TextBlock
 #         vertical = norm_v > norm_h
 #     else:
 #         vertical = norm_v > norm_h * 2
-#     # calcuate distance between textlines and origin 
+#     # calculate distance between textlines and origin 
 #     if vertical:
 #         primary_vec, primary_norm = v, norm_v
 #         distance_vectors = center_pnts - np.array([[im_w, 0]], dtype=np.float64)   # vertical manga text is read from right to left, so origin is (imw, 0)
@@ -688,7 +726,7 @@ def sort_regions(regions: List[TextBlock], right_to_left=True) -> List[TextBlock
 
 #     return final_blk_list
 
-def visualize_textblocks(canvas, blk_list: List[TextBlock]):
+def visualize_textblocks(canvas: np.ndarray, blk_list: List[TextBlock]):
     lw = max(round(sum(canvas.shape) / 2 * 0.003), 2)  # line width
     for i, blk in enumerate(blk_list):
         bx1, by1, bx2, by2 = blk.xyxy

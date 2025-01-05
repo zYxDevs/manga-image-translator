@@ -28,12 +28,12 @@ class LamaInpainter(LamaMPEInpainter):
         sd = torch.load(self._get_file_path('inpainting_lama.ckpt'), map_location='cpu')
         model.load_state_dict(sd['model'] if 'model' in sd else sd)
         self.model.eval()
-        self.use_cuda = device == 'cuda'
-        if self.use_cuda:
-            self.model = self.model.cuda()
+        self.device = device
+        if device.startswith('cuda') or device == 'mps':
+            self.model.to(device)
 
 
-class DepthWiseSeperableConv(nn.Module):
+class DepthWiseSeparableConv(nn.Module):
     def __init__(self, in_dim, out_dim, *args, **kwargs):
         super().__init__()
         if 'groups' in kwargs:
@@ -91,7 +91,7 @@ class MultidilatedConv(nn.Module):
             self.cat_in = False
             self.in_dims = [in_dim] * dilation_num
 
-        conv_type = DepthWiseSeperableConv if use_depthwise else nn.Conv2d
+        conv_type = DepthWiseSeparableConv if use_depthwise else nn.Conv2d
         dilation = min_dilation
         for i in range(dilation_num):
             if isinstance(padding, int):
@@ -158,7 +158,7 @@ def get_conv_block_ctor(kind='default'):
     if kind == 'default':
         return nn.Conv2d
     if kind == 'depthwise':
-        return DepthWiseSeperableConv   
+        return DepthWiseSeparableConv   
     if kind == 'multidilated':
         return MultidilatedConv
     raise ValueError(f'Unknown convolutional block kind {kind}')

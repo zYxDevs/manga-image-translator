@@ -52,12 +52,13 @@ def render_lines(
     canvas_w: int,
     font_size: int,
     stroke_width: int,
+    line_spacing: int = 0.01,
     fg: Tuple[int] = (0, 0, 0),
     bg: Tuple[int] = (255, 255, 255)) -> Image.Image:
 
     # bg_size = int(max(font_size * 0.1, 1)) if bg is not None else 0
     bg_size = stroke_width
-    spacing_y = int(font_size * 0.01)
+    spacing_y = int(font_size * (line_spacing or 0.01))
 
     # make large canvas
     canvas_w = max([l.length for l in textlines]) + (font_size + bg_size) * 2
@@ -98,7 +99,7 @@ def seg_eng(text: str) -> List[str]:
     """
     # TODO: replace with regexes
 
-    text = text.upper().replace('  ', ' ').replace(' .', '.').replace('\n', ' ')
+    text = text.strip().upper().replace('  ', ' ').replace(' .', '.').replace('\n', ' ')
     processed_text = ''
 
     # dumb way to ensure spaces between words
@@ -338,13 +339,13 @@ def render_textblock_list_eng(
     font_color = (0, 0, 0),
     stroke_color = (255, 255, 255),
     delimiter: str = ' ',
-    align_center=True,
-    line_spacing: float = 1.0,
+    line_spacing: int = 0.01,
     stroke_width: float = 0.1,
     size_tol: float = 1.0,
     ballonarea_thresh: float = 2,
     downscale_constraint: float = 0.7,
     original_img: np.ndarray = None,
+    disable_font_border: bool = False
 ) -> np.ndarray:
 
     r"""
@@ -391,7 +392,7 @@ def render_textblock_list_eng(
 
     # Adjust enlarge ratios relative to each other to reduce intersections
     for region in text_regions:
-        # If it wasnt changed below already
+        # If it wasn't changed below already
         if region.enlarge_ratio == 1:
             # The larger the aspect ratio the more it should try to enlarge the bubble
             region.enlarge_ratio = min(max(region.xywh[2] / region.xywh[3], region.xywh[3] / region.xywh[2]) * 1.5, 3)
@@ -499,7 +500,7 @@ def render_textblock_list_eng(
             line.pos_x -= canvas_x1
             line.pos_y -= canvas_y1
 
-        textlines_image = render_lines(textlines, canvas_h, canvas_w, font_size, sw, font_color, stroke_color)
+        textlines_image = render_lines(textlines, canvas_h, canvas_w, font_size, sw, line_spacing, font_color, stroke_color)
         rel_cx = ((canvas_x1 + canvas_x2) / 2 - rx) / resize_ratio
         rel_cy = ((canvas_y1 + canvas_y2) / 2 - ry + y_offset) / resize_ratio
 
