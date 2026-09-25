@@ -1408,7 +1408,7 @@
             }
           };
 
-          const uploadWithProgress = async (formData) => {
+          const uploadWithProgress = async (formData, retryCount = 0) => {
             try {
               const response = await fetch(
                 `${BASE_URI}translate/with-form/image/stream/web`,
@@ -1419,13 +1419,49 @@
                 }
               );
 
+              // Handle 429 (Too Many Requests) with exponential backoff retry
+              if (response.status === 429) {
+                const maxRetries = 10;
+                if (retryCount < maxRetries) {
+                  // Exponential backoff: 2s, 4s, 8s, 16s, ...
+                  const delay = Math.min(2000 * Math.pow(2, retryCount), 30000);
+                  console.log(`Server busy (429), retrying in ${delay/1000}s... (attempt ${retryCount + 1}/${maxRetries})`);
+
+                  // Update status to show waiting
+                  const processingItemIndex = this.queuedImages.findIndex(item => item.id === queuedImage.id);
+                  if (processingItemIndex !== -1) {
+                    this.queuedImages[processingItemIndex] = {
+                      ...this.queuedImages[processingItemIndex],
+                      status: "pending",
+                      error: `Waiting for server (attempt ${retryCount + 1}/${maxRetries})...`
+                    };
+                  }
+
+                  // Wait and retry
+                  await new Promise(resolve => setTimeout(resolve, delay));
+                  return uploadWithProgress(formData, retryCount + 1);
+                } else {
+                  // Max retries exceeded
+                  const processingItemIndex = this.queuedImages.findIndex(item => item.id === queuedImage.id);
+                  if (processingItemIndex !== -1) {
+                    this.queuedImages[processingItemIndex] = {
+                      ...this.queuedImages[processingItemIndex],
+                      status: "error",
+                      error: "Server too busy, please try again later"
+                    };
+                  }
+                  return;
+                }
+              }
+
               if (response.status !== 200) {
+                const errorText = await response.text();
                 const processingItemIndex = this.queuedImages.findIndex(item => item.id === queuedImage.id);
                 if (processingItemIndex !== -1) {
                   this.queuedImages[processingItemIndex] = {
                     ...this.queuedImages[processingItemIndex],
                     status: "error",
-                    error: "Upload failed"
+                    error: `Upload failed: ${response.status}`
                   };
                 }
                 return;
