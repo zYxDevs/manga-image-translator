@@ -23,7 +23,7 @@
       }
     </style>
   </head>
-  <body class="bg-gray-100">
+  <body :class="darkMode ? 'bg-gray-900' : 'bg-gray-100'" class="transition-colors duration-200">
     <div
       class="flex flex-col min-h-screen items-center justify-center py-8 px-4"
       @vue:mounted="onmounted"
@@ -32,22 +32,35 @@
       un-cloak
     >
       <!-- カード風のコンテナ -->
-      <div class="bg-white shadow-md rounded-lg p-6 w-full max-w-4xl space-y-6">
-        <h1 class="text-center text-2xl font-bold text-gray-800">
-          Image/Manga Translator
-        </h1>
+      <div :class="darkMode ? 'bg-gray-800' : 'bg-white'" class="shadow-md rounded-lg p-6 w-full max-w-4xl space-y-6 transition-colors duration-200">
+        <!-- Header with Dark Mode Toggle -->
+        <div class="flex items-center justify-between">
+          <h1 :class="darkMode ? 'text-gray-100' : 'text-gray-800'" class="text-2xl font-bold flex-1 text-center">
+            Image/Manga Translator
+          </h1>
+          <button
+            @click="toggleDarkMode"
+            :class="darkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'"
+            class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            :title="darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          >
+            <i class="iconify text-2xl" :data-icon="darkMode ? 'carbon:asleep' : 'carbon:asleep-filled'"></i>
+          </button>
+        </div>
 
         <!-- 上部の設定オプション（1段目） -->
         <div class="flex flex-wrap items-end gap-4">
           <!-- Detection Resolution -->
           <div class="flex items-center gap-1" title="Detection resolution">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="carbon:fit-to-screen"
             ></i>
             <div class="relative">
               <select
-                class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none"
                 v-model="detectionResolution"
                 @change="onSettingChange"
               >
@@ -57,7 +70,8 @@
                 <option value="2560">2560px</option>
               </select>
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -66,12 +80,14 @@
           <!-- Text Detector -->
           <div class="flex items-center gap-1" title="Text detector">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="carbon:search-locate"
             ></i>
             <div class="relative">
               <select
-                class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none"
                 v-model="textDetector"
                 @change="onSettingChange"
               >
@@ -80,7 +96,8 @@
                 <option value="paddle">Paddle</option>
               </select>
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -89,12 +106,14 @@
           <!-- Render text direction -->
           <div class="flex items-center gap-1" title="Render text orientation">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="carbon:text-align-left"
             ></i>
             <div class="relative">
               <select
-                class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none"
                 v-model="renderTextDirection"
                 @change="onSettingChange"
               >
@@ -103,7 +122,8 @@
                 <option value="vertical">Vertical</option>
               </select>
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -112,12 +132,14 @@
           <!-- Translator -->
           <div class="flex items-center gap-1" title="Translator">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="carbon:operations-record"
             ></i>
             <div class="relative">
               <select
-                class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none"
                 v-model="translator"
                 @change="onSettingChange"
               >
@@ -126,7 +148,8 @@
                 </option>
               </select>
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -137,7 +160,8 @@
             <i class="iconify text-gray-600" data-icon="carbon:language"></i>
             <div class="relative">
               <select  
-                  class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500"  
+                  :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none"  
                   v-model="targetLanguage"  
                   @change="onSettingChange"
               >  
@@ -169,7 +193,8 @@
                   <option value="FIL">Wikang Filipino</option>  
               </select>  
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -183,7 +208,8 @@
             <i class="iconify text-gray-600" data-icon="carbon:paint-brush"></i>
             <div class="relative">
               <select
-                class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none"
                 v-model="inpaintingSize"
                 @change="onSettingChange"
               >
@@ -193,7 +219,8 @@
                 <option value="2560">2560px</option>
               </select>
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -202,13 +229,15 @@
           <!-- Unclip Ratio -->
           <div class="flex items-center gap-1" title="Unclip Ratio">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="weui:max-window-filled"
             ></i>
             <div class="relative">
               <input
                 type="number"
-                class="appearance-none bg-transparent border-b border-gray-300 pl-2 pr-2 py-1 outline-none focus:border-blue-500 w-20"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-2 pr-2 py-1 outline-none w-20"
                 v-model="customUnclipRatio"
                 placeholder="2.3 (Default)"
                 step="0.01"
@@ -220,13 +249,15 @@
           <!-- Box Threshold -->
           <div class="flex items-center gap-1" title="Box Threshold">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="weui:photo-wall-outlined"
             ></i>
             <div class="relative">
               <input
                 type="number"
-                class="appearance-none bg-transparent border-b border-gray-300 pl-2 pr-2 py-1 outline-none focus:border-blue-500 w-20"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-2 pr-2 py-1 outline-none w-20"
                 v-model="customBoxThreshold"
                 placeholder="0.7 (Default)"
                 step="0.01"
@@ -238,13 +269,15 @@
           <!-- Mask Dilation Offset -->
           <div class="flex items-center gap-1" title="Mask Dilation Offset">
             <i
-              class="iconify text-gray-600"
+              :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+              class="iconify"
               data-icon="material-symbols:adjust-outline"
             ></i>
             <div class="relative">
               <input
                 type="number"
-                class="appearance-none bg-transparent border-b border-gray-300 pl-2 pr-2 py-1 outline-none focus:border-blue-500 w-20"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-2 pr-2 py-1 outline-none w-20"
                 v-model="maskDilationOffset"
                 placeholder="30 (Default)"
                 step="1"
@@ -258,7 +291,8 @@
             <i class="iconify text-gray-600" data-icon="carbon:paint-brush"></i>
             <div class="relative">
               <select
-                class="appearance-none bg-transparent border-b border-gray-300 pl-4 pr-7 py-1 outline-none focus:border-blue-500 w-28"
+                :class="darkMode ? 'border-gray-600 text-gray-200 focus:border-blue-400' : 'border-gray-300 focus:border-blue-500'"
+                class="appearance-none bg-transparent border-b pl-4 pr-7 py-1 outline-none w-28"
                 v-model="inpainter"
                 @change="onSettingChange"
               >
@@ -270,7 +304,8 @@
                 <option value="original">Original</option>
               </select>
               <i
-                class="iconify absolute top-1 right-1 text-gray-500 pointer-events-none"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify absolute top-1 right-1 pointer-events-none"
                 data-icon="carbon:chevron-down"
               ></i>
             </div>
@@ -293,7 +328,8 @@
           <!-- 処理中ステータス表示 -->
           <div
             v-else-if="status"
-            class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-md p-8 h-72"
+            :class="darkMode ? 'border-gray-600' : 'border-gray-300'"
+            class="flex flex-col items-center justify-center border-2 border-dashed rounded-md p-8 h-72"
           >
             <div
               v-if="error"
@@ -309,7 +345,8 @@
             </div>
             <div
               v-else
-              class="flex flex-col items-center gap-2 text-center text-gray-700"
+              :class="darkMode ? 'text-gray-300' : 'text-gray-700'"
+              class="flex flex-col items-center gap-2 text-center"
             >
               <i
                 class="iconify w-8 h-8 text-gray-500 animate-spin"
@@ -322,7 +359,8 @@
           <!-- ファイルアップロードエリア -->
           <label
             v-else
-            class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-md p-8 h-72 cursor-pointer hover:border-blue-400 transition-colors py-57"
+            :class="darkMode ? 'border-gray-600 hover:border-blue-500' : 'border-gray-300 hover:border-blue-400'"
+            class="flex flex-col items-center justify-center border-2 border-dashed rounded-md p-8 h-72 cursor-pointer transition-colors py-57"
             for="file"
             @dragenter.prevent
             @dragover.prevent
@@ -343,7 +381,8 @@
                 File Preview
               </div>
               <img
-                class="max-w-[18rem] max-h-[18rem] rounded-md border border-gray-200"
+                :class="darkMode ? 'border-gray-600' : 'border-gray-200'"
+                class="max-w-[18rem] max-h-[18rem] rounded-md border"
                 :src="fileUri"
               />
               <div class="flex space-x-2">
@@ -376,10 +415,11 @@
               </div>
               <div class="max-h-32 overflow-y-auto w-full">
                 <div v-for="file in selectedFiles.slice(0, 5)" :key="file.name"
-                     class="text-sm text-gray-600 truncate px-2 py-1 bg-gray-50 rounded">
+                     :class="darkMode ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-gray-50 text-gray-600 border-gray-200'"
+                     class="text-sm truncate px-2 py-1 rounded border">
                   {{ file.name }}
                 </div>
-                <div v-if="selectedFiles.length > 5" class="text-sm text-gray-500">
+                <div v-if="selectedFiles.length > 5" :class="darkMode ? 'text-gray-400' : 'text-gray-500'" class="text-sm">
                   ... and {{ selectedFiles.length - 5 }} more files
                 </div>
               </div>
@@ -406,13 +446,14 @@
             <div v-else class="flex flex-col items-center gap-2 text-center">
 
               <i
-                class="iconify w-8 h-8 text-gray-500"
+                :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
+                class="iconify w-8 h-8"
                 data-icon="carbon:cloud-upload"
               ></i>
-              <div class="text-gray-600">
+              <div :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
                 Paste images, click to select multiple, or drag and drop here
               </div>
-              <div class="text-sm text-gray-500">
+              <div :class="darkMode ? 'text-gray-500' : 'text-gray-500'" class="text-sm">
                 Supports multiple file selection (Ctrl/Cmd + click)
               </div>
               <div class="flex space-x-2 mt-2">
@@ -445,12 +486,14 @@
 
         <!-- フッターリンク -->
         <div
-          class="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-gray-600 mt-4"
+          :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
+          class="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm mt-4"
         >
           <div>
             Please consider supporting us by
             <a
-              class="underline text-blue-600 hover:text-blue-800"
+              :class="darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'"
+              class="underline"
               href="https://ko-fi.com/voilelabs"
               target="_blank"
               rel="noopener noreferrer"
@@ -482,7 +525,7 @@
         <!-- Image Queue Section -->
         <div class="border-t pt-6 mt-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-800">
+            <h3 :class="darkMode ? 'text-gray-200' : 'text-gray-800'" class="text-lg font-semibold">
               Translation Queue ({{ queuedImages.length }})
             </h3>
             <div class="flex space-x-2">
@@ -506,8 +549,9 @@
           
                     <!-- Queue items -->
           <div v-else class="space-y-3">
-            <div v-for="queuedImage in queuedImages" :key="queuedImage.id" 
-                 class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border">
+            <div v-for="queuedImage in queuedImages" :key="queuedImage.id"
+                 :class="darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'"
+                 class="flex items-center space-x-3 p-3 rounded-lg border">
               <!-- Image preview -->
               <div class="w-16 h-16 flex-shrink-0">
                 <img :src="URL.createObjectURL(queuedImage.file)" 
@@ -517,7 +561,7 @@
               
               <!-- Image info -->
               <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-900 truncate">
+                <div :class="darkMode ? 'text-gray-200' : 'text-gray-900'" class="text-sm font-medium truncate">
                   {{ queuedImage.file.name }}
                 </div>
                 <div class="text-xs text-gray-500">
@@ -599,7 +643,7 @@
         <!-- Results Gallery Section -->
         <div class="border-t pt-6 mt-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-800">
+            <h3 :class="darkMode ? 'text-gray-200' : 'text-gray-800'" class="text-lg font-semibold">
               Translation Results ({{ finishedImages.length }})
             </h3>
             <div class="flex space-x-2">
@@ -626,7 +670,8 @@
           <div v-if="showGallery && finishedImages.length > 0" 
                class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <div v-for="image in finishedImages" :key="image.id"
-                 class="group cursor-pointer bg-white rounded-lg border hover:border-blue-400 hover:shadow-md transition-all duration-200"
+                 :class="darkMode ? 'bg-gray-700 border-gray-600 hover:border-blue-500' : 'bg-white border-gray-200 hover:border-blue-400'"
+                 class="group cursor-pointer rounded-lg border hover:shadow-md transition-all duration-200"
                  @click="openImageModal(image)">
               <div class="relative aspect-square overflow-hidden rounded-t-lg">
                 <img :src="image.result" 
@@ -749,18 +794,42 @@
           window.addEventListener("paste", this.onpaste);
           this.loadSettings();
           this.loadFinishedImages();
+          this.loadDarkMode();
           // Sync gallery with results folder on page load
           setTimeout(() => {
             this.syncGalleryWithResults();
           }, 1000);
-          
+
           // Periodically sync gallery with results folder
           setInterval(() => {
             this.syncGalleryWithResults();
           }, 30000); // Sync every 30 seconds
-          
+
           // Add keyboard event listeners for modal navigation
           window.addEventListener('keydown', this.handleKeydown);
+        },
+
+        // Dark mode state
+        darkMode: false,
+
+        toggleDarkMode() {
+          this.darkMode = !this.darkMode;
+          try {
+            localStorage.setItem('manga-translator-dark-mode', JSON.stringify(this.darkMode));
+          } catch (error) {
+            console.warn('Failed to save dark mode setting:', error);
+          }
+        },
+
+        loadDarkMode() {
+          try {
+            const saved = localStorage.getItem('manga-translator-dark-mode');
+            if (saved !== null) {
+              this.darkMode = JSON.parse(saved);
+            }
+          } catch (error) {
+            console.warn('Failed to load dark mode setting:', error);
+          }
         },
 
         file: null,
